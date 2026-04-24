@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบตรวจสอบคุณภาพงานผลิต</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23EF5B0C'/%3E%3Ctext x='50' y='68' font-family='Arial Black' font-size='48' font-weight='900' text-anchor='middle' fill='white'%3EQC%3C/text%3E%3C/svg%3E">
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #F5F3EE;
+      font-family: 'Sarabun', sans-serif;
+      color: #1A1A1A;
+      min-height: 100vh;
+    }
+    .kanit { font-family: 'Kanit', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    header { background: #FFFFFF; border-bottom: 1px solid #D6D1C7; }
+    .header-inner {
+      max-width: 1200px; margin: 0 auto; padding: 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .home-btn {
+      width: 42px; height: 42px;
+      background: #F4EFD9; border: 1.5px solid #1A1A1A;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+      text-decoration: none; color: #1A1A1A;
+    }
+    .home-btn:hover { background: #1A1A1A; color: #F4EFD9; }
+    .home-btn svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .header-title { font-family: 'Kanit', sans-serif; font-size: 20px; font-weight: 700; line-height: 1.1; }
+    .header-subtitle { font-size: 13px; color: #8A8278; margin-top: 2px; }
+    .header-date { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A8278; text-align: right; }
+
+    .main-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+    .tabs {
+      display: flex; gap: 0;
+      border-bottom: 1px solid #D6D1C7;
+      margin-bottom: 24px; overflow-x: auto;
+    }
+    .tab-btn {
+      padding: 14px 20px; background: transparent; border: none;
+      font-family: 'Kanit', sans-serif; font-weight: 500; font-size: 15px;
+      color: #5A5550; cursor: pointer; position: relative;
+      letter-spacing: 0.02em; white-space: nowrap;
+    }
+    .tab-btn.active { color: #1A1A1A; }
+    .tab-btn.active::after {
+      content: ''; position: absolute;
+      bottom: -1px; left: 20px; right: 20px;
+      height: 3px; background: #C1440E;
+    }
+    .tab-count { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A8278; margin-left: 4px; }
+
+    .card { background: #FFFFFF; border: 1px solid #E5E0D5; padding: 24px; }
+
+    /* FORM */
+    .form-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1A1A1A; }
+    .form-title { font-family: 'Kanit', sans-serif; font-size: 24px; font-weight: 700; }
+    .form-subtitle { font-size: 14px; color: #5A5550; margin-top: 4px; }
+    .form-grid { display: grid; gap: 18px; }
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .field-label {
+      display: block; font-size: 13px; font-weight: 600;
+      letter-spacing: 0.02em; color: #5A5550;
+      margin-bottom: 6px; text-transform: uppercase;
+    }
+    .field-input, .field-select, .field-textarea {
+      width: 100%; padding: 10px 12px;
+      border: 1.5px solid #D6D1C7; background: #FFFFFF;
+      font-size: 15px; color: #1A1A1A;
+      font-family: inherit; transition: border-color 0.15s;
+    }
+    .field-input:focus, .field-select:focus, .field-textarea:focus {
+      outline: 2px solid #EF5B0C; outline-offset: 1px;
+      border-color: #1A1A1A;
+    }
+    .field-textarea { resize: vertical; min-height: 80px; }
+
+    /* Autocomplete */
+    .autocomplete-wrapper { position: relative; }
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 100%; left: 0; right: 0;
+      background: #FFFFFF;
+      border: 1.5px solid #1A1A1A; border-top: none;
+      max-height: 200px; overflow-y: auto;
+      z-index: 10;
+      display: none;
+    }
+    .autocomplete-dropdown.show { display: block; }
+    .autocomplete-item {
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      border-bottom: 1px solid #F5F3EE;
+    }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover,
+    .autocomplete-item.highlight { background: #F4EFD9; }
+    .autocomplete-item .count {
+      float: right;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: #8A8278;
+    }
+
+    /* Checkbox group */
+    .checkbox-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
+    }
+    .checkbox-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px;
+      border: 1.5px solid #D6D1C7;
+      background: #FFFFFF;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 14px;
+      user-select: none;
+    }
+    .checkbox-item:hover { border-color: #1A1A1A; }
+    .checkbox-item input { cursor: pointer; width: 16px; height: 16px; accent-color: #C1440E; }
+    .checkbox-item.checked { background: #FFF5F0; border-color: #C1440E; }
+
+    /* Image upload */
+    .image-upload-wrapper { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+    .image-upload-label {
+      display: inline-block;
+      padding: 10px 20px;
+      border: 1.5px dashed #8A8278;
+      cursor: pointer;
+      background: #FFFFFF;
+      color: #5A5550;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .image-preview-wrapper { position: relative; }
+    .image-preview { max-height: 120px; border: 1px solid #D6D1C7; display: block; }
+    .image-remove-btn {
+      position: absolute; top: 4px; right: 4px;
+      background: rgba(26,26,26,0.85); color: #F5F3EE;
+      border: none; width: 24px; height: 24px;
+      cursor: pointer; font-size: 16px; line-height: 1;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      background: #1A1A1A; color: #F5F3EE; border: none;
+      padding: 12px 24px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: all 0.15s; font-size: 15px;
+    }
+    .btn-primary:hover { background: #C1440E; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: transparent; color: #1A1A1A;
+      border: 1.5px solid #1A1A1A;
+      padding: 10px 20px; font-weight: 500; cursor: pointer;
+      font-family: inherit; transition: all 0.15s; font-size: 14px;
+    }
+    .btn-secondary:hover { background: #1A1A1A; color: #F5F3EE; }
+    .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-danger {
+      background: transparent; color: #C1440E;
+      border: 1.5px solid #C1440E;
+      padding: 10px 20px; font-weight: 500; cursor: pointer;
+      font-family: inherit; font-size: 14px;
+    }
+    .btn-danger:hover { background: #C1440E; color: #F5F3EE; }
+
+    /* Records */
+    .filters-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .filter-field { flex: 1 1 180px; }
+    .records-list { display: grid; gap: 12px; }
+    .record-item {
+      background: #FFFFFF; border: 1px solid #E5E0D5;
+      padding: 18px;
+      display: grid; grid-template-columns: auto 1fr auto;
+      gap: 16px; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .record-item:hover { border-color: #1A1A1A; transform: translateX(2px); }
+    .record-accent { width: 4px; align-self: stretch; }
+    .record-content { min-width: 0; }
+    .record-header {
+      display: flex; gap: 8px; align-items: center;
+      flex-wrap: wrap; margin-bottom: 4px;
+    }
+    .record-title { font-family: 'Kanit', sans-serif; font-size: 17px; font-weight: 600; }
+    .record-badge {
+      font-size: 12px; padding: 2px 8px;
+      color: #FFF; font-weight: 500;
+    }
+    .record-jobtype {
+      font-size: 12px; padding: 2px 8px;
+      background: #F4EFD9; color: #5A5550;
+      font-weight: 500;
+    }
+    .record-size { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A8278; }
+    .record-error {
+      font-size: 14px; color: #5A5550;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .record-date { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A8278; margin-top: 6px; }
+    .record-thumb { width: 64px; height: 64px; object-fit: cover; border: 1px solid #E5E0D5; }
+
+    .empty-state { padding: 60px; text-align: center; color: #8A8278; }
+    .empty-state-title { font-family: 'Kanit', sans-serif; font-size: 18px; margin-bottom: 8px; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 50; display: none;
+      align-items: flex-start; justify-content: center;
+      padding: 20px; overflow-y: auto;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: #FFFFFF;
+      max-width: 680px; width: 100%;
+      padding: 32px; margin-top: 40px;
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 20px; padding-bottom: 16px;
+      border-bottom: 2px solid #1A1A1A;
+    }
+    .modal-close {
+      background: none; border: none;
+      font-size: 24px; cursor: pointer;
+      color: #5A5550; padding: 0; line-height: 1;
+    }
+    .modal-image { max-width: 100%; border: 1px solid #E5E0D5; margin-bottom: 20px; }
+    .modal-section { margin-bottom: 20px; }
+    .modal-section-content {
+      white-space: pre-wrap; line-height: 1.6;
+      padding: 14px; background: #F5F3EE;
+    }
+    .modal-section-content.error-content { border-left: 3px solid #C1440E; }
+    .modal-section-content.fix-content { border-left: 3px solid #2D5016; }
+    .modal-footer {
+      display: flex; justify-content: flex-end; gap: 12px;
+      padding-top: 16px; border-top: 1px solid #E5E0D5;
+    }
+    .modal-categories { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .modal-category-tag {
+      font-size: 12px; padding: 3px 10px;
+      background: #FFE8D6; color: #C1440E;
+      font-weight: 500;
+    }
+
+    /* Dashboard */
+    .dashboard-grid { display: grid; gap: 20px; }
+    .dashboard-header {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px;
+    }
+    .year-selector {
+      font-size: 32px; font-family: 'Kanit', sans-serif;
+      font-weight: 700; border: none; background: transparent;
+      cursor: pointer; padding: 0; margin-top: 4px;
+    }
+    .total-count {
+      font-family: 'Kanit', sans-serif;
+      font-size: 36px; font-weight: 800;
+      color: #C1440E; line-height: 1;
+    }
+    .ranking-row {
+      display: grid;
+      grid-template-columns: 32px 120px 1fr auto;
+      gap: 12px; align-items: center;
+    }
+    .ranking-num { font-family: 'Kanit', sans-serif; font-size: 20px; font-weight: 700; color: #8A8278; }
+    .ranking-num.top { color: #C1440E; }
+    .ranking-name { font-family: 'Kanit', sans-serif; font-weight: 500; }
+    .ranking-bar-bg { background: #F5F3EE; height: 28px; position: relative; }
+    .ranking-bar-fill { height: 100%; transition: width 0.4s; }
+    .ranking-count { font-family: 'Kanit', sans-serif; font-size: 20px; font-weight: 700; min-width: 40px; text-align: right; }
+
+    .cause-ranking { display: grid; gap: 10px; }
+    .cause-row {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 12px; align-items: center;
+    }
+    .cause-num { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: #8A8278; }
+    .cause-label { font-size: 15px; }
+    .cause-count {
+      font-family: 'Kanit', sans-serif; font-size: 16px; font-weight: 700;
+    }
+    .cause-pct { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A8278; margin-left: 6px; }
+
+    .quarter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .quarter-card { border: 1px solid #E5E0D5; padding: 18px; }
+    .quarter-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 12px;
+    }
+    .quarter-title { font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 16px; }
+    .quarter-total { font-family: 'Kanit', sans-serif; font-size: 28px; font-weight: 800; }
+    .quarter-team-row { display: flex; justify-content: space-between; font-size: 13px; }
+    .quarter-team-dot { width: 8px; height: 8px; display: inline-block; margin-right: 6px; }
+
+    footer {
+      margin-top: 60px; padding-top: 24px; padding-bottom: 40px;
+      border-top: 1px solid #D6D1C7;
+      font-size: 13px; color: #8A8278; text-align: center;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%);
+      background: #1A1A1A; color: #F5F3EE;
+      padding: 12px 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      z-index: 100;
+      font-weight: 500;
+      display: none;
+    }
+    .toast.show { display: block; }
+    .toast.error { background: #C1440E; }
+
+    /* Loading overlay */
+    .loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(245, 243, 238, 0.8);
+      z-index: 60;
+      display: none;
+      align-items: center; justify-content: center;
+    }
+    .loading-overlay.show { display: flex; }
+    .loading-box {
+      background: #FFFFFF;
+      padding: 24px 32px;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+
+    .hidden { display: none !important; }
+    .status-bar {
+      background: #F4EFD9;
+      padding: 8px 20px;
+      font-size: 13px;
+      color: #5A5550;
+      text-align: center;
+      border-bottom: 1px solid #E5E0D5;
+    }
+    .status-bar.error { background: #FFE8D6; color: #C1440E; }
+
+    @media (max-width: 640px) {
+      .tab-btn { padding: 12px 14px; font-size: 14px; }
+      .card { padding: 16px; }
+      .modal { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="header-left">
+        <a href="index.html" class="home-btn" title="กลับหน้าหลัก">
+          <svg viewBox="0 0 24 24">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </a>
+        <div>
+          <div class="header-title">ระบบตรวจสอบคุณภาพงานผลิต</div>
+          <div class="header-subtitle">Production Quality Control Database</div>
+        </div>
+      </div>
+      <div class="header-date" id="headerDate"></div>
+    </div>
+  </header>
+
+  <div id="statusBar" class="status-bar hidden"></div>
+
+  <div class="main-container">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="form">บันทึกงาน</button>
+      <button class="tab-btn" data-tab="records">
+        รายการทั้งหมด <span class="tab-count" id="recordsCount">(0)</span>
+      </button>
+      <button class="tab-btn" data-tab="dashboard">สรุปผล</button>
+    </div>
+
+    <!-- TAB: บันทึกงาน -->
+    <div id="tab-form" class="tab-content">
+      <div class="card" style="max-width: 860px;">
+        <div class="form-header">
+          <div class="form-title">บันทึกงานที่ไม่ตรงกับใบงาน</div>
+          <div class="form-subtitle">กรอกข้อมูลให้ครบถ้วนเพื่อใช้เป็นสถิติในการประเมินผล</div>
+        </div>
+
+        <form class="form-grid" id="entryForm" onsubmit="event.preventDefault(); submitForm();">
+          <div class="form-row">
+            <div>
+              <label class="field-label">ทีมผลิต *</label>
+              <select class="field-select" id="team" required>
+                <option value="">— เลือกทีม —</option>
+                <option value="ทีมพี่ชาติ">ทีมพี่ชาติ</option>
+                <option value="ทีมน็อต">ทีมน็อต</option>
+                <option value="ทีมเล็ก">ทีมเล็ก</option>
+                <option value="ทีมทิต">ทีมทิต</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">ประเภทงาน</label>
+              <div class="autocomplete-wrapper">
+                <input type="text" class="field-input" id="jobType" placeholder="เช่น ป้ายไฟ LED, สติกเกอร์..." autocomplete="off" oninput="handleJobTypeInput()" onfocus="showJobTypeDropdown()" onblur="setTimeout(hideJobTypeDropdown, 200)">
+                <div class="autocomplete-dropdown" id="jobTypeDropdown"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div>
+              <label class="field-label">ชื่องาน *</label>
+              <input type="text" class="field-input" id="jobName" placeholder="เช่น ป้ายหน้าร้าน ABC" required>
+            </div>
+            <div>
+              <label class="field-label">ขนาดของงาน</label>
+              <input type="text" class="field-input" id="jobSize" placeholder="เช่น 120×240 ซม.">
+            </div>
+          </div>
+
+          <div>
+            <label class="field-label">รูปภาพหน้างาน</label>
+            <div class="image-upload-wrapper">
+              <label class="image-upload-label" id="uploadLabel">
+                + แนบรูปภาพ
+                <input type="file" accept="image/*" id="imageFile" style="display:none" onchange="handleImageUpload(event)">
+              </label>
+              <div class="image-preview-wrapper hidden" id="previewWrapper">
+                <img class="image-preview" id="imagePreview" alt="preview">
+                <button type="button" class="image-remove-btn" onclick="removeImage()">×</button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="field-label">ประเภทความผิดพลาด (เลือกได้หลายข้อ)</label>
+            <div class="checkbox-group" id="categoriesGroup">
+              <!-- Generated by JS -->
+            </div>
+          </div>
+
+          <div>
+            <label class="field-label">รายละเอียดความผิดพลาด *</label>
+            <textarea class="field-textarea" id="errorDetails" rows="4" placeholder="อธิบายว่างานที่ผลิตออกมาไม่ตรงกับใบงานอย่างไร..." required></textarea>
+          </div>
+
+          <div>
+            <label class="field-label">การแก้ไข</label>
+            <textarea class="field-textarea" id="correction" rows="3" placeholder="อธิบายวิธีแก้ไขและผลลัพธ์..."></textarea>
+          </div>
+
+          <div>
+            <button type="submit" class="btn-primary" id="submitBtn">บันทึกข้อมูล</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- TAB: รายการทั้งหมด -->
+    <div id="tab-records" class="tab-content hidden">
+      <div class="card" style="margin-bottom: 16px;">
+        <div class="filters-row">
+          <div class="filter-field">
+            <label class="field-label">กรองตามทีม</label>
+            <select class="field-select" id="filterTeam" onchange="renderRecords()">
+              <option value="">ทุกทีม</option>
+              <option value="ทีมพี่ชาติ">ทีมพี่ชาติ</option>
+              <option value="ทีมน็อต">ทีมน็อต</option>
+              <option value="ทีมเล็ก">ทีมเล็ก</option>
+              <option value="ทีมทิต">ทีมทิต</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label class="field-label">กรองตามเดือน</label>
+            <select class="field-select" id="filterMonth" onchange="renderRecords()">
+              <option value="">ทุกเดือน</option>
+            </select>
+          </div>
+          <button class="btn-secondary" id="reloadBtn" onclick="loadFromServer()">🔄 รีเฟรช</button>
+          <button class="btn-secondary" id="exportBtn" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+      </div>
+      <div id="recordsContainer"></div>
+    </div>
+
+    <!-- TAB: สรุปผล -->
+    <div id="tab-dashboard" class="tab-content hidden">
+      <div id="dashboardContainer"></div>
+    </div>
+
+    <footer>ระบบ QC งานผลิต · ข้อมูลทั้งหมดเก็บใน Google Sheets</footer>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay" id="modalOverlay" onclick="closeModalIfOverlay(event)">
+    <div class="modal" id="modalContent" onclick="event.stopPropagation()"></div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <!-- LOADING OVERLAY -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box" id="loadingText">กำลังโหลด...</div>
+  </div>
+
+  <script>
+    // ========================================================================
+    //  🔧 CONFIG — แก้ URL ตรงนี้ถ้าต้อง redeploy Apps Script
+    // ========================================================================
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxjD9VZQyVHQNfvCvjahxpF83896Hibc8UmMa_VjFmkY-sbiZjFnq4z8rLapzPTB_SU/exec';
+
+    // ========================================================================
+    //  CONSTANTS
+    // ========================================================================
+    const TEAMS = ['ทีมพี่ชาติ', 'ทีมน็อต', 'ทีมเล็ก', 'ทีมทิต'];
+    const TEAM_COLORS = {
+      'ทีมพี่ชาติ': '#C1440E',
+      'ทีมน็อต':   '#2D5016',
+      'ทีมเล็ก':   '#1E3A5F',
+      'ทีมทิต':    '#8B5A2B',
+    };
+    const ERROR_CATEGORIES = [
+      'สีผิด',
+      'ขนาดผิด',
+      'ตัวอักษร/ข้อความผิด',
+      'งานประกอบผิด',
+      'ทำไม่ตรงแบบ',
+      'ส่งผิดที่/ช้า',
+      'ระบบไฟเสีย',
+      'อื่นๆ',
+    ];
+    const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const THAI_MONTHS_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+    // ========================================================================
+    //  STATE
+    // ========================================================================
+    let entries = [];
+    let currentImage = null;
+    let currentYear = new Date().getFullYear();
+    let jobTypeHighlight = -1;
+
+    // ========================================================================
+    //  UTILITIES
+    // ========================================================================
+    function getQuarter(month) { return Math.floor(month / 3) + 1; }
+    function formatThaiDate(iso) {
+      const d = new Date(iso);
+      return d.getDate() + ' ' + THAI_MONTHS[d.getMonth()] + ' ' + (d.getFullYear() + 543);
+    }
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function showToast(msg, isError) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show' + (isError ? ' error' : '');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+    function showLoading(msg) {
+      document.getElementById('loadingText').textContent = msg || 'กำลังโหลด...';
+      document.getElementById('loadingOverlay').classList.add('show');
+    }
+    function hideLoading() {
+      document.getElementById('loadingOverlay').classList.remove('show');
+    }
+    function setStatus(msg, isError) {
+      const bar = document.getElementById('statusBar');
+      if (!msg) { bar.classList.add('hidden'); return; }
+      bar.textContent = msg;
+      bar.className = 'status-bar' + (isError ? ' error' : '');
+    }
+
+    // ========================================================================
+    //  API CALLS (Google Apps Script)
+    // ========================================================================
+    async function apiCall(action, data) {
+      const body = { action, ...data };
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        // Apps Script doesn't allow custom headers for CORS, use text/plain
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      return json;
+    }
+
+    async function loadFromServer() {
+      showLoading('กำลังโหลดข้อมูลจาก Google Sheets...');
+      try {
+        const result = await apiCall('list');
+        entries = result.entries || [];
+        updateCount();
+        setStatus('');
+        // Re-render whatever tab is active
+        const activeTab = document.querySelector('.tab-btn.active').dataset.tab;
+        if (activeTab === 'records') renderRecords();
+        if (activeTab === 'dashboard') renderDashboard();
+      } catch (err) {
+        console.error(err);
+        setStatus('⚠️ โหลดข้อมูลไม่สำเร็จ: ' + err.message, true);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function createEntryOnServer(payload) {
+      showLoading('กำลังบันทึก...' + (payload.imageData ? ' (รอสักครู่ กำลังอัปโหลดรูป)' : ''));
+      try {
+        const result = await apiCall('create', { payload });
+        if (result.entry) {
+          entries.unshift(result.entry);
+          updateCount();
+        }
+        return true;
+      } catch (err) {
+        console.error(err);
+        showToast('บันทึกไม่สำเร็จ: ' + err.message, true);
+        return false;
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function deleteEntryOnServer(id) {
+      showLoading('กำลังลบ...');
+      try {
+        await apiCall('delete', { id });
+        entries = entries.filter(e => e.id !== id);
+        updateCount();
+        return true;
+      } catch (err) {
+        console.error(err);
+        showToast('ลบไม่สำเร็จ: ' + err.message, true);
+        return false;
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // ========================================================================
+    //  IMAGE HANDLING
+    // ========================================================================
+    function resizeImage(file, maxDim, quality) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let { width, height } = img;
+            if (Math.max(width, height) > maxDim) {
+              if (width > height) { height = height * (maxDim / width); width = maxDim; }
+              else { width = width * (maxDim / height); height = maxDim; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = reject;
+          img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        currentImage = await resizeImage(file, 1000, 0.75);
+        document.getElementById('imagePreview').src = currentImage;
+        document.getElementById('previewWrapper').classList.remove('hidden');
+        document.getElementById('uploadLabel').innerHTML = 'เปลี่ยนรูปภาพ<input type="file" accept="image/*" id="imageFile" style="display:none" onchange="handleImageUpload(event)">';
+      } catch (err) {
+        alert('ไม่สามารถประมวลผลรูปภาพได้');
+      }
+    }
+
+    function removeImage() {
+      currentImage = null;
+      document.getElementById('previewWrapper').classList.add('hidden');
+      document.getElementById('uploadLabel').innerHTML = '+ แนบรูปภาพ<input type="file" accept="image/*" id="imageFile" style="display:none" onchange="handleImageUpload(event)">';
+    }
+
+    // ========================================================================
+    //  CHECKBOX GROUP (error categories)
+    // ========================================================================
+    function renderCategoriesGroup() {
+      const group = document.getElementById('categoriesGroup');
+      group.innerHTML = ERROR_CATEGORIES.map(c =>
+        '<label class="checkbox-item">' +
+          '<input type="checkbox" value="' + c + '" onchange="toggleCheckboxStyle(this)">' +
+          '<span>' + c + '</span>' +
+        '</label>'
+      ).join('');
+    }
+
+    function toggleCheckboxStyle(input) {
+      input.closest('.checkbox-item').classList.toggle('checked', input.checked);
+    }
+
+    function getCheckedCategories() {
+      return Array.from(document.querySelectorAll('#categoriesGroup input:checked')).map(i => i.value);
+    }
+
+    function clearCheckedCategories() {
+      document.querySelectorAll('#categoriesGroup input').forEach(i => {
+        i.checked = false;
+        i.closest('.checkbox-item').classList.remove('checked');
+      });
+    }
+
+    // ========================================================================
+    //  JOB TYPE AUTOCOMPLETE
+    // ========================================================================
+    function getJobTypeSuggestions(query) {
+      const counts = {};
+      entries.forEach(e => {
+        if (e.jobType && e.jobType.trim()) {
+          counts[e.jobType] = (counts[e.jobType] || 0) + 1;
+        }
+      });
+      const arr = Object.entries(counts).map(([label, count]) => ({ label, count }));
+      arr.sort((a, b) => b.count - a.count);
+      const q = (query || '').toLowerCase().trim();
+      if (!q) return arr.slice(0, 8);
+      return arr.filter(x => x.label.toLowerCase().includes(q)).slice(0, 8);
+    }
+
+    function showJobTypeDropdown() {
+      const val = document.getElementById('jobType').value;
+      const suggestions = getJobTypeSuggestions(val);
+      const dropdown = document.getElementById('jobTypeDropdown');
+      if (suggestions.length === 0) { dropdown.classList.remove('show'); return; }
+      dropdown.innerHTML = suggestions.map((s, i) =>
+        '<div class="autocomplete-item" onmousedown="selectJobType(\'' + s.label.replace(/'/g, "\\'") + '\')">' +
+          escapeHtml(s.label) +
+          '<span class="count">' + s.count + ' ครั้ง</span>' +
+        '</div>'
+      ).join('');
+      dropdown.classList.add('show');
+      jobTypeHighlight = -1;
+    }
+
+    function hideJobTypeDropdown() {
+      document.getElementById('jobTypeDropdown').classList.remove('show');
+    }
+
+    function handleJobTypeInput() {
+      showJobTypeDropdown();
+    }
+
+    function selectJobType(val) {
+      document.getElementById('jobType').value = val;
+      hideJobTypeDropdown();
+    }
+
+    // ========================================================================
+    //  FORM SUBMIT
+    // ========================================================================
+    async function submitForm() {
+      const team = document.getElementById('team').value;
+      const jobType = document.getElementById('jobType').value.trim();
+      const jobName = document.getElementById('jobName').value.trim();
+      const jobSize = document.getElementById('jobSize').value.trim();
+      const errorDetails = document.getElementById('errorDetails').value.trim();
+      const correction = document.getElementById('correction').value.trim();
+      const categories = getCheckedCategories();
+
+      if (!team) { alert('กรุณาเลือกทีมผลิต'); return; }
+      if (!jobName) { alert('กรุณากรอกชื่องาน'); return; }
+      if (!errorDetails) { alert('กรุณากรอกรายละเอียดความผิดพลาด'); return; }
+
+      document.getElementById('submitBtn').disabled = true;
+      const ok = await createEntryOnServer({
+        team, jobType, jobName, jobSize,
+        imageData: currentImage,
+        errorCategories: categories,
+        errorDetails, correction,
+      });
+      document.getElementById('submitBtn').disabled = false;
+
+      if (ok) {
+        showToast('บันทึกข้อมูลเรียบร้อย');
+        document.getElementById('entryForm').reset();
+        removeImage();
+        clearCheckedCategories();
+        switchTab('records');
+      }
+    }
+
+    // ========================================================================
+    //  TABS
+    // ========================================================================
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.tab === name);
+      });
+      document.querySelectorAll('.tab-content').forEach(c => {
+        c.classList.toggle('hidden', c.id !== 'tab-' + name);
+      });
+      if (name === 'records') renderRecords();
+      if (name === 'dashboard') renderDashboard();
+    }
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    // ========================================================================
+    //  RECORDS LIST
+    // ========================================================================
+    function updateMonthFilter() {
+      const select = document.getElementById('filterMonth');
+      const currentVal = select.value;
+      const set = new Set();
+      entries.forEach(e => {
+        const d = new Date(e.createdAt);
+        set.add(d.getFullYear() + '-' + d.getMonth());
+      });
+      const opts = ['<option value="">ทุกเดือน</option>'];
+      Array.from(set).sort().reverse().forEach(key => {
+        const [y, m] = key.split('-').map(Number);
+        opts.push('<option value="' + key + '">' + THAI_MONTHS_FULL[m] + ' ' + (y + 543) + '</option>');
+      });
+      select.innerHTML = opts.join('');
+      select.value = currentVal;
+    }
+
+    function getFilteredEntries() {
+      const filterTeam = document.getElementById('filterTeam').value;
+      const filterMonth = document.getElementById('filterMonth').value;
+      return entries.filter(e => {
+        if (filterTeam && e.team !== filterTeam) return false;
+        if (filterMonth) {
+          const d = new Date(e.createdAt);
+          if ((d.getFullYear() + '-' + d.getMonth()) !== filterMonth) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderRecords() {
+      updateMonthFilter();
+      const filtered = getFilteredEntries();
+      document.getElementById('exportBtn').disabled = filtered.length === 0;
+      const container = document.getElementById('recordsContainer');
+
+      if (filtered.length === 0) {
+        container.innerHTML =
+          '<div class="card empty-state">' +
+            '<div class="empty-state-title">ยังไม่มีข้อมูล</div>' +
+            '<div style="font-size:14px;">' +
+              (entries.length === 0 ? 'เริ่มบันทึกงานที่ไม่ตรงกับใบงานในแท็บ "บันทึกงาน"' : 'ลองเปลี่ยนเงื่อนไขการกรอง') +
+            '</div>' +
+          '</div>';
+        return;
+      }
+
+      const html = filtered.map(e => {
+        const color = TEAM_COLORS[e.team] || '#8A8278';
+        return '<div class="record-item" onclick="openModal(\'' + e.id + '\')">' +
+          '<div class="record-accent" style="background:' + color + '"></div>' +
+          '<div class="record-content">' +
+            '<div class="record-header">' +
+              '<span class="record-title">' + escapeHtml(e.jobName) + '</span>' +
+              '<span class="record-badge" style="background:' + color + '">' + escapeHtml(e.team) + '</span>' +
+              (e.jobType ? '<span class="record-jobtype">' + escapeHtml(e.jobType) + '</span>' : '') +
+              (e.jobSize ? '<span class="record-size">' + escapeHtml(e.jobSize) + '</span>' : '') +
+            '</div>' +
+            '<div class="record-error">' + escapeHtml(e.errorDetails) + '</div>' +
+            '<div class="record-date">' + formatThaiDate(e.createdAt) + '</div>' +
+          '</div>' +
+          (e.imageUrl ? '<img class="record-thumb" src="' + e.imageUrl + '" referrerpolicy="no-referrer" alt="" onerror="this.style.display=\'none\'">' : '<div></div>') +
+        '</div>';
+      }).join('');
+      container.innerHTML = '<div class="records-list">' + html + '</div>';
+    }
+
+    // ========================================================================
+    //  MODAL
+    // ========================================================================
+    function openModal(id) {
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+      const color = TEAM_COLORS[entry.team] || '#8A8278';
+      const html =
+        '<div class="modal-header">' +
+          '<div style="flex:1">' +
+            '<div class="record-badge" style="background:' + color + '; display:inline-block; padding:3px 10px; margin-bottom:8px;">' + escapeHtml(entry.team) + '</div>' +
+            (entry.jobType ? ' <span class="record-jobtype" style="display:inline-block; padding:3px 10px;">' + escapeHtml(entry.jobType) + '</span>' : '') +
+            '<div class="kanit" style="font-size:22px; font-weight:700;">' + escapeHtml(entry.jobName) + '</div>' +
+            '<div class="mono" style="font-size:12px; color:#8A8278; margin-top:4px;">' +
+              formatThaiDate(entry.createdAt) + (entry.jobSize ? ' · ' + escapeHtml(entry.jobSize) : '') +
+            '</div>' +
+          '</div>' +
+          '<button class="modal-close" onclick="closeModal()">×</button>' +
+        '</div>' +
+        (entry.imageUrl ? '<img class="modal-image" src="' + entry.imageUrl + '" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'">' : '') +
+        (entry.errorCategories && entry.errorCategories.length > 0 ? '<div class="modal-section">' +
+          '<div class="field-label">ประเภทความผิดพลาด</div>' +
+          '<div class="modal-categories">' +
+            entry.errorCategories.map(c => '<span class="modal-category-tag">' + escapeHtml(c) + '</span>').join('') +
+          '</div>' +
+        '</div>' : '') +
+        '<div class="modal-section">' +
+          '<div class="field-label">รายละเอียดความผิดพลาด</div>' +
+          '<div class="modal-section-content error-content">' + escapeHtml(entry.errorDetails) + '</div>' +
+        '</div>' +
+        (entry.correction ? '<div class="modal-section">' +
+          '<div class="field-label">การแก้ไข</div>' +
+          '<div class="modal-section-content fix-content">' + escapeHtml(entry.correction) + '</div>' +
+        '</div>' : '') +
+        '<div class="modal-footer">' +
+          '<button class="btn-danger" onclick="confirmDelete(\'' + entry.id + '\')">ลบรายการนี้</button>' +
+          '<button class="btn-primary" onclick="closeModal()">ปิด</button>' +
+        '</div>';
+      document.getElementById('modalContent').innerHTML = html;
+      document.getElementById('modalOverlay').classList.add('show');
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('show');
+    }
+
+    function closeModalIfOverlay(event) {
+      if (event.target.id === 'modalOverlay') closeModal();
+    }
+
+    async function confirmDelete(id) {
+      if (!confirm('ลบรายการนี้ใช่หรือไม่?')) return;
+      const ok = await deleteEntryOnServer(id);
+      if (ok) {
+        closeModal();
+        showToast('ลบเรียบร้อย');
+        renderRecords();
+      }
+    }
+
+    // ========================================================================
+    //  CSV EXPORT
+    // ========================================================================
+    function exportCSV() {
+      const filtered = getFilteredEntries();
+      if (filtered.length === 0) return;
+      const headers = ['วันที่', 'ทีมผลิต', 'ประเภทงาน', 'ชื่องาน', 'ขนาดงาน', 'ประเภทความผิดพลาด', 'รายละเอียดความผิดพลาด', 'การแก้ไข'];
+      const rows = filtered.map(e => [
+        formatThaiDate(e.createdAt),
+        e.team || '',
+        e.jobType || '',
+        e.jobName || '',
+        e.jobSize || '',
+        (e.errorCategories || []).join(', '),
+        (e.errorDetails || '').replace(/"/g, '""'),
+        (e.correction || '').replace(/"/g, '""'),
+      ]);
+      const csv = '\ufeff' + [headers, ...rows].map(r => r.map(c => '"' + c + '"').join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'QC-Report-' + new Date().toISOString().slice(0, 10) + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ========================================================================
+    //  DASHBOARD
+    // ========================================================================
+    function getYears() {
+      const s = new Set(entries.map(e => new Date(e.createdAt).getFullYear()));
+      s.add(new Date().getFullYear());
+      return Array.from(s).sort().reverse();
+    }
+    function getYearEntries(year) {
+      return entries.filter(e => new Date(e.createdAt).getFullYear() === year);
+    }
+
+    function renderDashboard() {
+      const years = getYears();
+      const yearData = getYearEntries(currentYear);
+      const total = yearData.length;
+
+      // Team totals
+      const teamTotals = TEAMS.map(t => ({
+        team: t, count: yearData.filter(e => e.team === t).length
+      })).sort((a, b) => b.count - a.count);
+      const maxTeamCount = Math.max(...teamTotals.map(t => t.count), 1);
+
+      // Cause aggregates
+      const causeCount = {};
+      yearData.forEach(e => {
+        (e.errorCategories || []).forEach(c => {
+          causeCount[c] = (causeCount[c] || 0) + 1;
+        });
+      });
+      const causeArr = Object.entries(causeCount).map(([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count);
+      const totalCauseCount = causeArr.reduce((s, x) => s + x.count, 0);
+
+      // Monthly data
+      const monthly = Array.from({length: 12}, (_, m) => {
+        const row = { month: THAI_MONTHS[m], total: 0 };
+        TEAMS.forEach(t => row[t] = 0);
+        return row;
+      });
+      yearData.forEach(e => {
+        const m = new Date(e.createdAt).getMonth();
+        if (monthly[m][e.team] != null) {
+          monthly[m][e.team]++;
+        }
+        monthly[m].total++;
+      });
+      const maxMonthly = Math.max(...monthly.map(m => m.total), 1);
+
+      // Quarterly
+      const quarters = [1,2,3,4].map(n => {
+        const row = { quarter: 'ไตรมาส ' + n, total: 0 };
+        TEAMS.forEach(t => row[t] = 0);
+        return row;
+      });
+      yearData.forEach(e => {
+        const q = getQuarter(new Date(e.createdAt).getMonth()) - 1;
+        if (quarters[q][e.team] != null) {
+          quarters[q][e.team]++;
+        }
+        quarters[q].total++;
+      });
+
+      // Build HTML
+      let html = '<div class="dashboard-grid">';
+
+      // Year + Total
+      html += '<div class="card dashboard-header">' +
+        '<div>' +
+          '<div style="font-size:13px; color:#8A8278; letter-spacing:0.05em; text-transform:uppercase;">ปี พ.ศ.</div>' +
+          '<select class="year-selector" onchange="currentYear = Number(this.value); renderDashboard();">' +
+            years.map(y => '<option value="' + y + '"' + (y === currentYear ? ' selected' : '') + '>' + (y + 543) + '</option>').join('') +
+          '</select>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:13px; color:#8A8278; letter-spacing:0.05em; text-transform:uppercase;">ยอดรวมทั้งปี</div>' +
+          '<div class="total-count">' + total + '</div>' +
+          '<div style="font-size:12px; color:#8A8278;">ครั้ง</div>' +
+        '</div>' +
+      '</div>';
+
+      // Team ranking
+      html += '<div class="card">' +
+        '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">อันดับความผิดพลาดรายทีม</div>' +
+        '<div style="font-size:13px; color:#8A8278; margin-bottom:20px;">ยอดรวมตลอดปี ' + (currentYear + 543) + '</div>' +
+        '<div style="display:grid; gap:12px;">' +
+          teamTotals.map((t, i) => {
+            const pct = (t.count / maxTeamCount) * 100;
+            const isTop = i === 0 && t.count > 0;
+            return '<div class="ranking-row">' +
+              '<div class="ranking-num' + (isTop ? ' top' : '') + ' mono">' + String(i + 1).padStart(2, '0') + '</div>' +
+              '<div class="ranking-name">' + t.team + '</div>' +
+              '<div class="ranking-bar-bg">' +
+                '<div class="ranking-bar-fill" style="background:' + TEAM_COLORS[t.team] + '; width:' + pct + '%;"></div>' +
+              '</div>' +
+              '<div class="ranking-count">' + t.count + '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+
+      // Cause ranking
+      html += '<div class="card">' +
+        '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">สาเหตุความผิดพลาดที่พบบ่อย</div>' +
+        '<div style="font-size:13px; color:#8A8278; margin-bottom:20px;">ปี ' + (currentYear + 543) + ' · หมายเหตุ: 1 งานเลือกได้หลายสาเหตุ</div>' +
+        (causeArr.length === 0 ?
+          '<div style="color:#8A8278; font-size:14px;">ยังไม่มีการระบุประเภทความผิดพลาด</div>' :
+          '<div class="cause-ranking">' +
+            causeArr.map((c, i) => {
+              const pct = totalCauseCount > 0 ? Math.round((c.count / totalCauseCount) * 100) : 0;
+              return '<div class="cause-row">' +
+                '<div class="cause-num">' + String(i + 1).padStart(2, '0') + '</div>' +
+                '<div class="cause-label">' + escapeHtml(c.label) + '</div>' +
+                '<div><span class="cause-count">' + c.count + '</span><span class="cause-pct">' + pct + '%</span></div>' +
+              '</div>';
+            }).join('') +
+          '</div>'
+        ) +
+      '</div>';
+
+      // Monthly chart
+      html += '<div class="card">' +
+        '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">ความผิดพลาดรายเดือน</div>' +
+        '<div style="font-size:13px; color:#8A8278; margin-bottom:16px;">แยกตามทีม · ปี ' + (currentYear + 543) + '</div>' +
+        buildMonthlyChart(monthly, maxMonthly) +
+      '</div>';
+
+      // Quarterly summary
+      html += '<div class="card">' +
+        '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">สรุปรายไตรมาส</div>' +
+        '<div style="font-size:13px; color:#8A8278; margin-bottom:16px;">ปี ' + (currentYear + 543) + '</div>' +
+        '<div class="quarter-grid">' +
+          quarters.map(q => {
+            const topTeam = TEAMS.map(t => ({t, c: q[t]})).sort((a,b) => b.c - a.c)[0];
+            return '<div class="quarter-card">' +
+              '<div class="quarter-header">' +
+                '<div class="quarter-title">' + q.quarter + '</div>' +
+                '<div class="quarter-total" style="color:' + (q.total > 0 ? '#1A1A1A' : '#D6D1C7') + ';">' + q.total + '</div>' +
+              '</div>' +
+              '<div style="display:grid; gap:6px;">' +
+                TEAMS.map(t => {
+                  const isTop = q[t] > 0 && t === topTeam.t && q.total > 0;
+                  return '<div class="quarter-team-row">' +
+                    '<div><span class="quarter-team-dot" style="background:' + TEAM_COLORS[t] + '"></span>' + t + '</div>' +
+                    '<span class="mono" style="font-weight:600; color:' + (isTop ? '#C1440E' : '#5A5550') + ';">' + q[t] + '</span>' +
+                  '</div>';
+                }).join('') +
+              '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+
+      html += '</div>';
+      document.getElementById('dashboardContainer').innerHTML = html;
+    }
+
+    function buildMonthlyChart(monthly, maxVal) {
+      const chartW = 720, chartH = 260, padL = 40, padR = 10, padT = 10, padB = 36;
+      const plotW = chartW - padL - padR;
+      const plotH = chartH - padT - padB;
+      const barGap = 6;
+      const barW = (plotW / 12) - barGap;
+
+      const niceMax = Math.max(maxVal, 4);
+      const yStep = Math.ceil(niceMax / 4);
+      const yMax = yStep * 4;
+
+      let svg = '<svg viewBox="0 0 ' + chartW + ' ' + chartH + '" style="width:100%; height:auto; max-height:320px; display:block;">';
+
+      for (let i = 0; i <= 4; i++) {
+        const y = padT + plotH - (i / 4) * plotH;
+        const val = yStep * i;
+        svg += '<line x1="' + padL + '" x2="' + (chartW - padR) + '" y1="' + y + '" y2="' + y + '" stroke="#E5E0D5" stroke-width="1"/>';
+        svg += '<text x="' + (padL - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" font-family="Sarabun" fill="#5A5550">' + val + '</text>';
+      }
+
+      monthly.forEach((m, i) => {
+        const x = padL + i * (barW + barGap) + barGap / 2;
+        let yCursor = padT + plotH;
+        TEAMS.forEach(team => {
+          const count = m[team];
+          if (count === 0) return;
+          const h = (count / yMax) * plotH;
+          yCursor -= h;
+          svg += '<rect x="' + x + '" y="' + yCursor + '" width="' + barW + '" height="' + h + '" fill="' + TEAM_COLORS[team] + '">' +
+            '<title>' + team + ': ' + count + ' ครั้ง (' + m.month + ')</title></rect>';
+        });
+        svg += '<text x="' + (x + barW / 2) + '" y="' + (chartH - padB + 18) + '" text-anchor="middle" font-size="11" font-family="Sarabun" fill="#5A5550">' + m.month + '</text>';
+      });
+
+      svg += '</svg>';
+
+      let legend = '<div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; font-size:13px;">';
+      TEAMS.forEach(t => {
+        legend += '<div style="display:flex; align-items:center; gap:6px;">' +
+          '<div style="width:12px; height:12px; background:' + TEAM_COLORS[t] + ';"></div>' +
+          '<span>' + t + '</span>' +
+        '</div>';
+      });
+      legend += '</div>';
+
+      return svg + legend;
+    }
+
+    // ========================================================================
+    //  INIT
+    // ========================================================================
+    function updateCount() {
+      document.getElementById('recordsCount').textContent = '(' + entries.length + ')';
+    }
+
+    function updateHeaderDate() {
+      const d = new Date();
+      const th = d.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
+      document.getElementById('headerDate').innerHTML =
+        '<div>' + th + '</div><div>' + (d.getFullYear() + 543) + '</div>';
+    }
+
+    renderCategoriesGroup();
+    updateHeaderDate();
+    loadFromServer();
+  </script>
+</body>
+</html>

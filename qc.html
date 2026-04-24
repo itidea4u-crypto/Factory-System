@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8"> 
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบตรวจสอบคุณภาพงานผลิต</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23EF5B0C'/%3E%3Ctext x='50' y='68' font-family='Arial Black' font-size='48' font-weight='900' text-anchor='middle' fill='white'%3EQC%3C/text%3E%3C/svg%3E">
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -322,6 +323,138 @@
       border-top: 1px solid #D6D1C7;
       font-size: 13px; color: #8A8278; text-align: center;
     }
+
+    /* === Executive Summary Box === */
+    .summary-box {
+      background: linear-gradient(135deg, #FFF5F0 0%, #FFE8D6 100%);
+      border: 2px solid #C1440E;
+      padding: 24px;
+    }
+    .summary-box-title {
+      font-family: 'Kanit', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: #C1440E;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .summary-list {
+      display: grid;
+      gap: 10px;
+    }
+    .summary-item {
+      display: flex;
+      gap: 10px;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    .summary-item-bullet {
+      color: #C1440E;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .summary-item-highlight {
+      font-weight: 700;
+      color: #1A1A1A;
+    }
+
+    /* === Cross table (team × cause) === */
+    .cross-table-wrapper {
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+    .cross-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      min-width: 600px;
+    }
+    .cross-table th, .cross-table td {
+      padding: 10px 12px;
+      text-align: center;
+      border-bottom: 1px solid #E5E0D5;
+    }
+    .cross-table th {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      background: #F5F3EE;
+      color: #5A5550;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .cross-table th:first-child, .cross-table td:first-child {
+      text-align: left;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 500;
+    }
+    .cross-table td:first-child {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cross-table .team-dot {
+      width: 8px; height: 8px;
+      flex-shrink: 0;
+    }
+    .cross-table .cell-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+    .cross-table .cell-count.zero { color: #D6D1C7; }
+    .cross-table .cell-count.heat-1 { background: #FFF5F0; }
+    .cross-table .cell-count.heat-2 { background: #FFE0CC; }
+    .cross-table .cell-count.heat-3 { background: #FFBC99; color: #1A1A1A; font-weight: 700; }
+    .cross-table .cell-count.heat-4 { background: #FF8A5A; color: #FFFFFF; font-weight: 700; }
+    .cross-table .total-col, .cross-table .total-row td {
+      font-weight: 700;
+      background: #F5F3EE;
+    }
+    .cross-table .total-row td:first-child {
+      color: #1A1A1A;
+    }
+
+    /* === Export button header === */
+    .dashboard-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-export {
+      background: #C1440E; color: #FFFFFF; border: none;
+      padding: 12px 20px; font-weight: 600; cursor: pointer;
+      font-family: inherit; font-size: 14px;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: all 0.15s;
+    }
+    .btn-export:hover { background: #1A1A1A; }
+    .btn-export:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* === Monthly chart label on bars === */
+    .monthly-bar-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      fill: #FFFFFF;
+      pointer-events: none;
+    }
+    .monthly-total-label {
+      font-family: 'Kanit', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      fill: #1A1A1A;
+      pointer-events: none;
+    }
+
+    /* Hide home button + tabs when exporting */
+    .exporting .tabs, .exporting header, .exporting .dashboard-actions, .exporting footer {
+      display: none !important;
+    }
+    .exporting .main-container { padding-top: 20px; }
 
     /* Toast */
     .toast {
@@ -1042,6 +1175,7 @@
         monthly[m].total++;
       });
       const maxMonthly = Math.max(...monthly.map(m => m.total), 1);
+      const maxMonthlyIdx = monthly.findIndex(m => m.total === maxMonthly);
 
       // Quarterly
       const quarters = [1,2,3,4].map(n => {
@@ -1057,10 +1191,39 @@
         quarters[q].total++;
       });
 
-      // Build HTML
-      let html = '<div class="dashboard-grid">';
+      // Cross table data: team × cause
+      const crossTable = {};
+      TEAMS.forEach(t => {
+        crossTable[t] = {};
+        ERROR_CATEGORIES.forEach(c => crossTable[t][c] = 0);
+        crossTable[t]._total = 0;
+      });
+      yearData.forEach(e => {
+        if (!crossTable[e.team]) return;
+        (e.errorCategories || []).forEach(c => {
+          if (crossTable[e.team][c] != null) {
+            crossTable[e.team][c]++;
+          }
+        });
+        crossTable[e.team]._total++;
+      });
+      // Find categories actually used
+      const usedCategories = ERROR_CATEGORIES.filter(c =>
+        TEAMS.some(t => crossTable[t][c] > 0)
+      );
 
-      // Year + Total
+      // Build HTML
+      let html = '<div id="dashboardExport" class="dashboard-grid">';
+
+      // === Actions bar (Export button) ===
+      const actionsBar =
+        '<div class="dashboard-actions" id="dashboardActions">' +
+          '<button class="btn-export" onclick="exportDashboardPNG()" ' + (total === 0 ? 'disabled' : '') + '>' +
+            '<span>📸</span> Export รูป PNG' +
+          '</button>' +
+        '</div>';
+
+      // === Year + Total ===
       html += '<div class="card dashboard-header">' +
         '<div>' +
           '<div style="font-size:13px; color:#8A8278; letter-spacing:0.05em; text-transform:uppercase;">ปี พ.ศ.</div>' +
@@ -1075,7 +1238,60 @@
         '</div>' +
       '</div>';
 
-      // Team ranking
+      // === Executive Summary ===
+      if (total > 0) {
+        const topTeam = teamTotals[0];
+        const secondTeam = teamTotals[1];
+        const topCause = causeArr[0];
+        const topMonth = maxMonthlyIdx >= 0 ? THAI_MONTHS_FULL[maxMonthlyIdx] : null;
+
+        // Find top cause per top team
+        let topTeamTopCause = null;
+        if (topTeam && topTeam.count > 0 && crossTable[topTeam.team]) {
+          const teamCauses = ERROR_CATEGORIES.map(c => ({ c, n: crossTable[topTeam.team][c] }))
+            .filter(x => x.n > 0)
+            .sort((a, b) => b.n - a.n);
+          if (teamCauses.length > 0) topTeamTopCause = teamCauses[0];
+        }
+
+        const summaryItems = [];
+        if (topTeam && topTeam.count > 0) {
+          summaryItems.push(
+            'ทีมที่มีความผิดพลาดมากที่สุดคือ <span class="summary-item-highlight">' + topTeam.team + '</span> ' +
+            'จำนวน <span class="summary-item-highlight">' + topTeam.count + ' ครั้ง</span>' +
+            (secondTeam && secondTeam.count > 0 ? ' (ตามด้วย ' + secondTeam.team + ' ' + secondTeam.count + ' ครั้ง)' : '')
+          );
+        }
+        if (topCause && topCause.count > 0) {
+          summaryItems.push(
+            'สาเหตุที่พบบ่อยที่สุดคือ <span class="summary-item-highlight">"' + topCause.label + '"</span> ' +
+            'พบทั้งหมด <span class="summary-item-highlight">' + topCause.count + ' ครั้ง</span>'
+          );
+        }
+        if (topTeamTopCause && topTeam) {
+          summaryItems.push(
+            'สำหรับ ' + topTeam.team + ' ปัญหาหลักคือ <span class="summary-item-highlight">"' + topTeamTopCause.c + '"</span> ' +
+            '(' + topTeamTopCause.n + ' ครั้ง)'
+          );
+        }
+        if (topMonth && maxMonthly > 0) {
+          summaryItems.push(
+            'เดือนที่มีปัญหามากที่สุดคือ <span class="summary-item-highlight">' + topMonth + '</span> ' +
+            '(' + maxMonthly + ' ครั้ง)'
+          );
+        }
+
+        if (summaryItems.length > 0) {
+          html += '<div class="card summary-box">' +
+            '<div class="summary-box-title">📌 ประเด็นสำคัญของปี ' + (currentYear + 543) + '</div>' +
+            '<div class="summary-list">' +
+              summaryItems.map(s => '<div class="summary-item"><span class="summary-item-bullet">▸</span><div>' + s + '</div></div>').join('') +
+            '</div>' +
+          '</div>';
+        }
+      }
+
+      // === Team ranking ===
       html += '<div class="card">' +
         '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">อันดับความผิดพลาดรายทีม</div>' +
         '<div style="font-size:13px; color:#8A8278; margin-bottom:20px;">ยอดรวมตลอดปี ' + (currentYear + 543) + '</div>' +
@@ -1095,7 +1311,55 @@
         '</div>' +
       '</div>';
 
-      // Cause ranking
+      // === Cross table: Team × Cause ===
+      if (total > 0 && usedCategories.length > 0) {
+        const grandTotal = {};
+        usedCategories.forEach(c => {
+          grandTotal[c] = TEAMS.reduce((s, t) => s + crossTable[t][c], 0);
+        });
+        const maxCellVal = Math.max(...TEAMS.flatMap(t => usedCategories.map(c => crossTable[t][c])), 1);
+        const heatClass = (v) => {
+          if (v === 0) return 'zero';
+          const ratio = v / maxCellVal;
+          if (ratio >= 0.75) return 'heat-4';
+          if (ratio >= 0.5) return 'heat-3';
+          if (ratio >= 0.25) return 'heat-2';
+          return 'heat-1';
+        };
+
+        html += '<div class="card">' +
+          '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">ทีมไหนผิดพลาดเพราะอะไรบ้าง</div>' +
+          '<div style="font-size:13px; color:#8A8278; margin-bottom:16px;">ตารางเปรียบเทียบทีม × สาเหตุ (สีเข้ม = พบบ่อย)</div>' +
+          '<div class="cross-table-wrapper">' +
+          '<table class="cross-table">' +
+            '<thead><tr>' +
+              '<th>ทีม</th>' +
+              usedCategories.map(c => '<th>' + escapeHtml(c) + '</th>').join('') +
+              '<th class="total-col">รวม</th>' +
+            '</tr></thead>' +
+            '<tbody>' +
+              TEAMS.map(t => {
+                return '<tr>' +
+                  '<td><span class="team-dot" style="background:' + TEAM_COLORS[t] + '"></span>' + t + '</td>' +
+                  usedCategories.map(c => {
+                    const v = crossTable[t][c];
+                    return '<td class="cell-count ' + heatClass(v) + '">' + (v || '—') + '</td>';
+                  }).join('') +
+                  '<td class="total-col cell-count">' + crossTable[t]._total + '</td>' +
+                '</tr>';
+              }).join('') +
+              '<tr class="total-row">' +
+                '<td>รวม</td>' +
+                usedCategories.map(c => '<td>' + grandTotal[c] + '</td>').join('') +
+                '<td>' + TEAMS.reduce((s, t) => s + crossTable[t]._total, 0) + '</td>' +
+              '</tr>' +
+            '</tbody>' +
+          '</table>' +
+          '</div>' +
+        '</div>';
+      }
+
+      // === Cause ranking ===
       html += '<div class="card">' +
         '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">สาเหตุความผิดพลาดที่พบบ่อย</div>' +
         '<div style="font-size:13px; color:#8A8278; margin-bottom:20px;">ปี ' + (currentYear + 543) + ' · หมายเหตุ: 1 งานเลือกได้หลายสาเหตุ</div>' +
@@ -1114,14 +1378,14 @@
         ) +
       '</div>';
 
-      // Monthly chart
+      // === Monthly chart ===
       html += '<div class="card">' +
         '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">ความผิดพลาดรายเดือน</div>' +
         '<div style="font-size:13px; color:#8A8278; margin-bottom:16px;">แยกตามทีม · ปี ' + (currentYear + 543) + '</div>' +
         buildMonthlyChart(monthly, maxMonthly) +
       '</div>';
 
-      // Quarterly summary
+      // === Quarterly summary ===
       html += '<div class="card">' +
         '<div class="kanit" style="font-size:18px; font-weight:600; margin-bottom:4px;">สรุปรายไตรมาส</div>' +
         '<div style="font-size:13px; color:#8A8278; margin-bottom:16px;">ปี ' + (currentYear + 543) + '</div>' +
@@ -1147,23 +1411,26 @@
         '</div>' +
       '</div>';
 
-      html += '</div>';
-      document.getElementById('dashboardContainer').innerHTML = html;
+      html += '</div>'; // close dashboardExport
+
+      // Put actions bar BEFORE dashboardExport div
+      document.getElementById('dashboardContainer').innerHTML = actionsBar + html;
     }
 
     function buildMonthlyChart(monthly, maxVal) {
-      const chartW = 720, chartH = 260, padL = 40, padR = 10, padT = 10, padB = 36;
+      const chartW = 760, chartH = 300, padL = 40, padR = 10, padT = 20, padB = 36;
       const plotW = chartW - padL - padR;
       const plotH = chartH - padT - padB;
-      const barGap = 6;
+      const barGap = 8;
       const barW = (plotW / 12) - barGap;
 
       const niceMax = Math.max(maxVal, 4);
       const yStep = Math.ceil(niceMax / 4);
       const yMax = yStep * 4;
 
-      let svg = '<svg viewBox="0 0 ' + chartW + ' ' + chartH + '" style="width:100%; height:auto; max-height:320px; display:block;">';
+      let svg = '<svg viewBox="0 0 ' + chartW + ' ' + chartH + '" style="width:100%; height:auto; max-height:340px; display:block;">';
 
+      // Grid lines + Y labels
       for (let i = 0; i <= 4; i++) {
         const y = padT + plotH - (i / 4) * plotH;
         const val = yStep * i;
@@ -1171,9 +1438,12 @@
         svg += '<text x="' + (padL - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" font-family="Sarabun" fill="#5A5550">' + val + '</text>';
       }
 
+      // Bars (stacked) + labels
       monthly.forEach((m, i) => {
         const x = padL + i * (barW + barGap) + barGap / 2;
         let yCursor = padT + plotH;
+
+        // Stacked bars with count labels inside
         TEAMS.forEach(team => {
           const count = m[team];
           if (count === 0) return;
@@ -1181,7 +1451,19 @@
           yCursor -= h;
           svg += '<rect x="' + x + '" y="' + yCursor + '" width="' + barW + '" height="' + h + '" fill="' + TEAM_COLORS[team] + '">' +
             '<title>' + team + ': ' + count + ' ครั้ง (' + m.month + ')</title></rect>';
+          // Show count inside bar if bar is tall enough
+          if (h >= 14) {
+            svg += '<text class="monthly-bar-label" x="' + (x + barW / 2) + '" y="' + (yCursor + h / 2 + 4) + '" text-anchor="middle">' + count + '</text>';
+          }
         });
+
+        // Total on top of bar
+        if (m.total > 0) {
+          const totalY = padT + plotH - (m.total / yMax) * plotH;
+          svg += '<text class="monthly-total-label" x="' + (x + barW / 2) + '" y="' + (totalY - 6) + '" text-anchor="middle">' + m.total + '</text>';
+        }
+
+        // Month label
         svg += '<text x="' + (x + barW / 2) + '" y="' + (chartH - padB + 18) + '" text-anchor="middle" font-size="11" font-family="Sarabun" fill="#5A5550">' + m.month + '</text>';
       });
 
@@ -1197,6 +1479,46 @@
       legend += '</div>';
 
       return svg + legend;
+    }
+
+    // ========================================================================
+    //  EXPORT DASHBOARD AS PNG
+    // ========================================================================
+    async function exportDashboardPNG() {
+      const target = document.getElementById('dashboardExport');
+      if (!target) return;
+
+      showLoading('กำลังสร้างรูปภาพ...');
+      document.body.classList.add('exporting');
+
+      // Small delay so the loading overlay renders
+      await new Promise(r => setTimeout(r, 100));
+
+      try {
+        const canvas = await html2canvas(target, {
+          backgroundColor: '#F5F3EE',
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          windowWidth: target.scrollWidth,
+          windowHeight: target.scrollHeight,
+        });
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        const yearBE = currentYear + 543;
+        a.download = 'QC-Summary-' + yearBE + '-' + new Date().toISOString().slice(0, 10) + '.png';
+        a.click();
+
+        showToast('บันทึกรูปเรียบร้อย');
+      } catch (err) {
+        console.error(err);
+        showToast('สร้างรูปไม่สำเร็จ: ' + err.message, true);
+      } finally {
+        document.body.classList.remove('exporting');
+        hideLoading();
+      }
     }
 
     // ========================================================================

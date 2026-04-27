@@ -16,7 +16,6 @@
       position: relative;
       overflow-x: hidden;
     }
-    /* Dot pattern background */
     body::before {
       content: '';
       position: fixed;
@@ -27,7 +26,6 @@
       pointer-events: none;
       z-index: 0;
     }
-
     .container {
       position: relative;
       z-index: 1;
@@ -35,7 +33,6 @@
       margin: 0 auto;
       padding: 48px 24px 80px;
     }
-
     .welcome-header {
       text-align: center;
       margin-bottom: 16px;
@@ -57,7 +54,6 @@
       letter-spacing: 0.05em;
       font-weight: 400;
     }
-
     .tiles-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -66,7 +62,6 @@
       margin: 60px auto 0;
       padding: 0 12px;
     }
-
     .tile-cell {
       display: flex;
       flex-direction: column;
@@ -81,7 +76,6 @@
     .tile-cell:nth-child(4) { animation-delay: 0.28s; }
     .tile-cell:nth-child(5) { animation-delay: 0.34s; }
     .tile-cell:nth-child(6) { animation-delay: 0.40s; }
-
     .tile {
       width: 100%;
       aspect-ratio: 1 / 1;
@@ -108,7 +102,6 @@
       box-shadow: 0 10px 0 rgba(26, 26, 26, 0.15), 0 14px 24px rgba(0,0,0,0.08);
     }
     .tile.active:hover .hover-hint { opacity: 1; }
-
     .tile svg {
       width: 44px;
       height: 44px;
@@ -119,7 +112,6 @@
       stroke-linejoin: round;
     }
     .tile.inactive svg { opacity: 0.4; }
-
     .hover-hint {
       position: absolute;
       bottom: 12px;
@@ -132,7 +124,6 @@
       opacity: 0;
       transition: opacity 0.15s;
     }
-
     .tile-label {
       font-family: 'Kanit', sans-serif;
       font-weight: 600;
@@ -146,7 +137,6 @@
       font-weight: 400;
       font-size: 0.85em;
     }
-
     @keyframes fadeSlide {
       from { opacity: 0; transform: translateY(-12px); }
       to { opacity: 1; transform: translateY(0); }
@@ -163,9 +153,8 @@
       <h1 class="welcome-title">WELCOME</h1>
       <p class="subtitle">เลือกระบบที่ต้องการใช้งาน</p>
     </div>
-
     <div class="tiles-grid">
-      <!-- Tile 1: QC System -->
+      <!-- 1. QC -->
       <div class="tile-cell">
         <a href="qc.html" class="tile active">
           <svg viewBox="0 0 24 24">
@@ -178,7 +167,22 @@
         <div class="tile-label">ระบบตรวจสอบคุณภาพงานผลิต</div>
       </div>
 
-      <!-- Tile 2: Stock (coming soon) -->
+      <!-- 2. Job Order -->
+      <div class="tile-cell">
+        <a href="jobs.html" class="tile active">
+          <svg viewBox="0 0 24 24">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <span class="hover-hint">เปิด →</span>
+        </a>
+        <div class="tile-label">ระบบใบงานช่าง</div>
+      </div>
+
+      <!-- 3. Stock (coming soon) -->
       <div class="tile-cell">
         <div class="tile inactive">
           <svg viewBox="0 0 24 24">
@@ -191,11 +195,6 @@
         <div class="tile-label">ระบบสต๊อกของ</div>
       </div>
 
-      <!-- Empty tiles 3-6 -->
-      <div class="tile-cell">
-        <div class="tile inactive"></div>
-        <div class="tile-label inactive">เร็วๆ นี้</div>
-      </div>
       <div class="tile-cell">
         <div class="tile inactive"></div>
         <div class="tile-label inactive">เร็วๆ นี้</div>

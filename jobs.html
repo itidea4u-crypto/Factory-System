@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบใบงานช่าง</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232D5016'/%3E%3Ctext x='50' y='68' font-family='Arial Black' font-size='40' font-weight='900' text-anchor='middle' fill='white'%3EJOB%3C/text%3E%3C/svg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Kanit:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
@@ -235,62 +235,149 @@
   }
   .print-page {
     background: #FFF; border: 1px solid #E5E0D5;
-    margin: 0 auto 20px; padding: 12mm;
+    margin: 0 auto 20px; padding: 10mm 12mm;
     width: 210mm;
     max-width: 100%;
     min-height: 200px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
   }
+
+  /* === NEW PRINT HEADER === */
   .print-page-header {
-    border-bottom: 2px solid #1A1A1A;
+    text-align: center;
     padding-bottom: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #1A1A1A;
+  }
+  .print-title {
     font-family: 'Kanit', sans-serif;
     font-weight: 700;
+    font-size: 22px;
+    line-height: 1.2;
+  }
+  .print-meta {
+    font-family: 'Kanit', sans-serif;
     font-size: 16px;
-    display: flex;
-    justify-content: space-between;
+    font-weight: 400;
+    color: #1A1A1A;
+    margin-top: 2px;
   }
-  .print-page-num { font-size: 12px; color: #8A8278; font-weight: 500; }
-  .print-grid {
-    display: grid;
-    gap: 8px;
-  }
-  /* 4-up grid (production) */
+
+  /* === PRODUCTION GRID (2×2) === */
+  .print-grid { display: grid; gap: 8px; }
   .print-grid.cols-2 {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
+    height: calc(297mm - 56mm);
   }
-  /* 6-up grid (installation) */
-  .print-grid.cols-3-2 {
+
+  /* Production cell — image only */
+  .print-cell-production {
+    border: 1px solid #D6D1C7;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #FAFAF7;
+    min-height: 0;
+  }
+  .print-cell-production img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+  }
+  .print-cell-production .print-cell-img-placeholder {
+    color: #C8C4BC;
+    font-family: 'Kanit', sans-serif;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  /* === INSTALLATION GRID (2×3) === */
+  .print-grid.cols-2-3 {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr 1fr;
+    height: calc(297mm - 56mm);
   }
-  .print-cell {
+
+  /* Installation cell — number + image + lines */
+  .print-cell-install {
     border: 1px solid #D6D1C7;
-    padding: 6px;
-    display: flex;
-    flex-direction: column;
+    padding: 5px 6px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: 1fr auto;
     gap: 4px;
     min-height: 0;
     overflow: hidden;
   }
-  .print-cell-img {
-    width: 100%;
-    object-fit: contain;
-    background: #FAFAF7;
-    flex: 1;
+  .print-cell-num {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 28px;
+    line-height: 1;
+    color: #1A1A1A;
+    padding-right: 6px;
+    align-self: start;
+    grid-row: 1;
+    grid-column: 1;
+  }
+  .print-cell-img-wrap {
+    grid-row: 1;
+    grid-column: 2;
     min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
   }
-  .print-cell-text {
+  .print-cell-img-wrap img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+  }
+  .print-cell-img-placeholder {
+    color: #C8C4BC;
+    font-family: 'Kanit', sans-serif;
+    font-size: 13px;
+    text-align: center;
+    background: #F5F3EE;
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px dashed #D6D1C7;
+  }
+  .print-field-area {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 3px;
+  }
+  .print-field-row {
+    display: flex; align-items: baseline; gap: 4px;
+    font-family: 'Sarabun', sans-serif;
     font-size: 10px;
-    line-height: 1.3;
-    flex-shrink: 0;
+    color: #1A1A1A;
   }
-  .print-cell-text .label-tag {
-    font-weight: 600;
-    color: #2D5016;
+  .print-field-label { white-space: nowrap; font-weight: 600; }
+  .print-field-line {
+    flex: 1;
+    border-bottom: 1px solid #1A1A1A;
+    min-width: 0;
+    height: 14px;
+    padding-left: 4px;
+    font-size: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
+
+  /* Export PNG button */
+  .btn-export-png {
+    background: #C1440E; color: #FFF; border: none;
+    padding: 12px 20px; font-weight: 600; cursor: pointer;
+    font-family: inherit; font-size: 14px;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all 0.15s;
+  }
+  .btn-export-png:hover { background: #1A1A1A; }
+  .btn-export-png:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* Summary page */
   .summary-card {
@@ -378,6 +465,9 @@
     box-shadow: 0 8px 24px rgba(0,0,0,0.15);
   }
 
+  #jobItemsContainer:empty,
+  #saveButtonContainer:empty { display: none; }
+
   .hidden { display: none !important; }
   footer {
     margin-top: 60px; padding-top: 24px; padding-bottom: 40px;
@@ -397,10 +487,7 @@
 
   /* PRINT STYLES */
   @media print {
-    @page {
-      size: A4 portrait;
-      margin: 8mm;
-    }
+    @page { size: A4 portrait; margin: 8mm; }
     body { background: #FFF; }
     header, .tabs, .print-controls, footer, .toast, .loading-overlay { display: none !important; }
     .main-container { max-width: none; padding: 0; }
@@ -411,9 +498,8 @@
       page-break-after: always;
     }
     .print-page:last-child { page-break-after: auto; }
-    .print-page-header { font-size: 14px; }
-    .print-cell { border: 1px solid #999; }
-    .print-cell-img { max-height: 100%; }
+    .print-grid.cols-2, .print-grid.cols-2-3 { height: calc(297mm - 48mm); }
+    .print-cell-production, .print-cell-install { border: 1px solid #999; }
   }
 </style>
 </head>
@@ -509,17 +595,25 @@
           </div>
         </div>
         <div>
+          <label class="field-label">โหมด</label>
+          <div class="pill-group">
+            <button class="pill-btn active" data-print-mode="single" onclick="selectPrintMode('single')">ทีมเดี่ยว</button>
+            <button class="pill-btn" data-print-mode="all" onclick="selectPrintMode('all')">ทุกทีม</button>
+          </div>
+        </div>
+        <div id="printTeamWrapper">
           <label class="field-label">ทีม</label>
-          <select class="field-select" id="printTeam" onchange="renderPrint()"></select>
+          <select class="field-select" id="printTeam" onchange="loadPrintData()"></select>
         </div>
         <div>
           <label class="field-label">วันที่</label>
-          <input type="date" class="field-input" id="printDate" onchange="renderPrint()">
+          <input type="date" class="field-input" id="printDate" onchange="loadPrintData()">
         </div>
       </div>
       <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
         <button class="btn-secondary" onclick="loadPrintData()">🔄 รีเฟรช</button>
-        <button class="btn-print" id="printBtn" onclick="window.print()">🖨️ ปริ้น</button>
+        <button class="btn-print" id="printBtn" onclick="window.print()" disabled>🖨️ ปริ้น</button>
+        <button class="btn-export-png" id="exportPrintBtn" onclick="exportPrintPNG()" disabled>📸 บันทึกเป็นรูป</button>
         <span id="printStats" style="color:#8A8278; font-size:13px;"></span>
       </div>
     </div>
@@ -746,7 +840,16 @@ async function loadExisting() {
   jobItems = [];
 
   try {
-    const res = await apiListJobs(currentWorkType, currentTeam, currentDate);
+    // Timeout 10 วินาที
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const res = await Promise.race([
+      apiListJobs(currentWorkType, currentTeam, currentDate),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('หมดเวลา — กรุณารีเฟรช')), 10000)),
+    ]);
+    clearTimeout(timeout);
+
     const existing = (res.jobs || []).map(j => ({
       id: j.id,
       imageUrl: j.imageUrl,
@@ -757,13 +860,15 @@ async function loadExisting() {
     jobItems = existing;
 
     if (existing.length === 0) {
-      status.innerHTML = '<div class="info-box">📂 ยังไม่มีข้อมูลของ ' + escapeHtml(currentTeam) + ' วันที่ ' + formatThaiDate(currentDate) + ' — ลากรูปเข้ามาได้เลย</div>';
+      status.innerHTML = '<div class="info-box">📂 ยังไม่มีข้อมูลของ <strong>' + escapeHtml(currentTeam) + '</strong> วันที่ ' + formatThaiDate(currentDate) + ' — ลากรูปเข้ามาได้เลย</div>';
     } else {
       status.innerHTML = '<div class="info-box">📂 มีรูปที่บันทึกไว้แล้ว <strong>' + existing.length + ' ใบ</strong> — ลากรูปใหม่เพิ่มได้</div>';
     }
     renderJobItems();
   } catch (err) {
-    status.innerHTML = '<div class="info-box warn">⚠️ โหลดข้อมูลไม่สำเร็จ: ' + escapeHtml(err.message) + '</div>';
+    status.innerHTML = '<div class="info-box warn">⚠️ ' + escapeHtml(err.message) +
+      '<br><button class="btn-secondary" style="margin-top:8px; font-size:13px;" onclick="loadExisting()">🔄 ลองใหม่</button>' +
+      '</div>';
   }
 }
 
@@ -970,6 +1075,19 @@ dropZone.addEventListener('drop', e => {
 // ============================================================================
 //  PRINT TAB
 // ============================================================================
+let printMode = 'single'; // 'single' | 'all'
+
+function selectPrintMode(mode) {
+  printMode = mode;
+  document.querySelectorAll('[data-print-mode]').forEach(b => {
+    b.classList.toggle('active', b.dataset.printMode === mode);
+  });
+  // ซ่อน/แสดง team select
+  const wrapper = document.getElementById('printTeamWrapper');
+  wrapper.style.display = mode === 'all' ? 'none' : '';
+  loadPrintData();
+}
+
 function selectPrintWorkType(wt) {
   printWorkType = wt;
   document.querySelectorAll('[data-print-worktype]').forEach(b => {
@@ -993,8 +1111,21 @@ async function loadPrintData() {
   printDate = document.getElementById('printDate').value;
   showLoading('กำลังโหลดข้อมูล...');
   try {
-    const res = await apiListJobs(printWorkType, printTeam, printDate);
-    printJobs = res.jobs || [];
+    if (printMode === 'all') {
+      // โหลดทุกทีมของ workType นี้
+      const allTeams = TEAMS[printWorkType];
+      const results = await Promise.all(
+        allTeams.map(t => apiListJobs(printWorkType, t, printDate))
+      );
+      // รวมเป็น array of {team, jobs}
+      printJobs = allTeams.map((t, i) => ({
+        team: t,
+        jobs: results[i].jobs || [],
+      })).filter(g => g.jobs.length > 0);
+    } else {
+      const res = await apiListJobs(printWorkType, printTeam, printDate);
+      printJobs = res.jobs || [];
+    }
     renderPrint();
   } catch (err) {
     showToast('โหลดข้อมูลไม่สำเร็จ: ' + err.message, true);
@@ -1003,57 +1134,145 @@ async function loadPrintData() {
   }
 }
 
+function formatPrintDate(iso) {
+  // dd/mm/yy (พ.ศ. 2 หลักสุดท้าย)
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  const be = (parseInt(y) + 543).toString().slice(-2);
+  return d + '/' + m + '/' + be;
+}
+
+function buildPrintPages(team, jobs, workType) {
+  const isInstall = workType === 'installation';
+  const perPage = isInstall ? 6 : 4;
+  const typeLabel = isInstall ? 'ติดตั้ง' : 'ผลิต';
+  const totalPages = Math.ceil(jobs.length / perPage);
+  let html = '';
+
+  for (let p = 0; p < totalPages; p++) {
+    const start = p * perPage;
+    const pageJobs = jobs.slice(start, start + perPage);
+
+    // Header
+    const headerHtml =
+      '<div class="print-page-header">' +
+        '<div class="print-title">ใบงาน' + typeLabel + ' ' + perPage + ' งาน/หน้า</div>' +
+        '<div class="print-meta">ทีม' + typeLabel + ': ' + escapeHtml(team) +
+          '&nbsp;&nbsp;&nbsp;วันที่: ' + formatPrintDate(printDate) + '</div>' +
+      '</div>';
+
+    // Grid cells
+    let cellsHtml = '';
+    for (let i = 0; i < perPage; i++) {
+      const j = pageJobs[i];
+      const num = start + i + 1;
+      const numStr = String(num).padStart(2, '0');
+
+      if (isInstall) {
+        // Installation cell
+        const imgPart = j
+          ? '<img src="' + j.imageUrl + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2" style="width:100%;height:100%;object-fit:contain;">'
+          : '<div class="print-cell-img-placeholder">แนบรูปงาน</div>';
+
+        cellsHtml +=
+          '<div class="print-cell-install">' +
+            '<div class="print-cell-num">' + numStr + '</div>' +
+            '<div class="print-cell-img-wrap">' + imgPart + '</div>' +
+            '<div class="print-field-area">' +
+              '<div class="print-field-row">' +
+                '<span class="print-field-label">สถานที่:</span>' +
+                '<div class="print-field-line">' + escapeHtml((j && j.location) || '') + '</div>' +
+              '</div>' +
+              '<div class="print-field-row">' +
+                '<span class="print-field-label">หมายเหตุเพิ่มเติม:</span>' +
+                '<div class="print-field-line">' + escapeHtml((j && j.note) || '') + '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      } else {
+        // Production cell — image only
+        const imgPart = j
+          ? '<img src="' + j.imageUrl + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2" style="width:100%;height:100%;object-fit:contain;">'
+          : '<div class="print-cell-img-placeholder">แนบรูปงาน</div>';
+        cellsHtml += '<div class="print-cell-production">' + imgPart + '</div>';
+      }
+    }
+
+    const gridClass = isInstall ? 'cols-2-3' : 'cols-2';
+    html +=
+      '<div class="print-page">' +
+        headerHtml +
+        '<div class="print-grid ' + gridClass + '">' + cellsHtml + '</div>' +
+      '</div>';
+  }
+  return html;
+}
+
 function renderPrint() {
   const container = document.getElementById('printPagesContainer');
   const stats = document.getElementById('printStats');
-  document.getElementById('printBtn').disabled = printJobs.length === 0;
+  const hasData = printMode === 'all'
+    ? Array.isArray(printJobs) && printJobs.length > 0
+    : Array.isArray(printJobs) && printJobs.length > 0;
 
-  if (printJobs.length === 0) {
+  document.getElementById('printBtn').disabled = !hasData;
+  document.getElementById('exportPrintBtn').disabled = !hasData;
+
+  if (!hasData) {
     container.innerHTML = '<div class="card empty-state">' +
       '<div class="empty-state-title">ยังไม่มีข้อมูล</div>' +
-      '<div style="font-size:14px;">เลือกประเภท + ทีม + วันที่ ที่มีข้อมูลแล้ว</div>' +
+      '<div style="font-size:14px;">เลือกประเภท + วันที่ที่มีข้อมูล แล้วกดรีเฟรช</div>' +
     '</div>';
     stats.textContent = '';
     return;
   }
 
-  // Production = 4 per page (2x2), Installation = 6 per page (2x3)
-  const perPage = printWorkType === 'production' ? 4 : 6;
-  const colsClass = printWorkType === 'production' ? 'cols-2' : 'cols-3-2';
-  const totalPages = Math.ceil(printJobs.length / perPage);
-  stats.textContent = printJobs.length + ' ใบ → ' + totalPages + ' หน้า A4';
-
   let html = '';
-  for (let p = 0; p < totalPages; p++) {
-    const start = p * perPage;
-    const pageJobs = printJobs.slice(start, start + perPage);
-    html += '<div class="print-page">' +
-      '<div class="print-page-header">' +
-        '<div>' + escapeHtml(printTeam) + ' · ' + formatThaiDate(printDate) + ' · ' + (printWorkType === 'production' ? 'ผลิต' : 'ติดตั้ง') + '</div>' +
-        '<div class="print-page-num">หน้า ' + (p + 1) + '/' + totalPages + '</div>' +
-      '</div>' +
-      '<div class="print-grid ' + colsClass + '" style="height: calc(297mm - 60mm);">' +
-        pageJobs.map((j, idx) => {
-          const num = start + idx + 1;
-          let textPart = '';
-          if (printWorkType === 'installation' && (j.location || j.note)) {
-            textPart = '<div class="print-cell-text">' +
-              (j.location ? '<span class="label-tag">📍</span> ' + escapeHtml(j.location) : '') +
-              (j.location && j.note ? ' · ' : '') +
-              (j.note ? '<span class="label-tag">📝</span> ' + escapeHtml(j.note) : '') +
-            '</div>';
-          }
-          return '<div class="print-cell">' +
-            '<img class="print-cell-img" src="' + j.imageUrl + '" referrerpolicy="no-referrer" onerror="this.style.background=\'#FFE8D6\'">' +
-            textPart +
-          '</div>';
-        }).join('') +
-        // Fill empty cells
-        Array(perPage - pageJobs.length).fill('<div class="print-cell" style="border-style:dashed; opacity:0.3;"></div>').join('') +
-      '</div>' +
-    '</div>';
+  if (printMode === 'all') {
+    let totalJobs = 0, totalPages = 0;
+    const perPage = printWorkType === 'installation' ? 6 : 4;
+    printJobs.forEach(g => {
+      totalJobs += g.jobs.length;
+      totalPages += Math.ceil(g.jobs.length / perPage);
+      html += buildPrintPages(g.team, g.jobs, printWorkType);
+    });
+    stats.textContent = totalJobs + ' ใบ · ' + printJobs.length + ' ทีม → ' + totalPages + ' หน้า A4';
+  } else {
+    const perPage = printWorkType === 'installation' ? 6 : 4;
+    const totalPages = Math.ceil(printJobs.length / perPage);
+    stats.textContent = printJobs.length + ' ใบ → ' + totalPages + ' หน้า A4';
+    html = buildPrintPages(printTeam, printJobs, printWorkType);
   }
   container.innerHTML = html;
+}
+
+async function exportPrintPNG() {
+  const container = document.getElementById('printPagesContainer');
+  if (!container || !container.firstChild) return;
+
+  showLoading('กำลังสร้างรูป...');
+  await new Promise(r => setTimeout(r, 150));
+  try {
+    const canvas = await html2canvas(container, {
+      backgroundColor: '#F5F3EE',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: container.scrollWidth,
+    });
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    const typeLabel = printWorkType === 'production' ? 'ผลิต' : 'ติดตั้ง';
+    const modeLabel = printMode === 'all' ? 'ทุกทีม' : printTeam;
+    a.download = 'ใบงาน-' + typeLabel + '-' + modeLabel + '-' + printDate + '.png';
+    a.click();
+    showToast('บันทึกรูปเรียบร้อย');
+  } catch (err) {
+    showToast('สร้างรูปไม่สำเร็จ: ' + err.message, true);
+  } finally {
+    hideLoading();
+  }
 }
 
 // ============================================================================

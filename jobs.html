@@ -5,640 +5,427 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบใบงานช่าง</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232D5016'/%3E%3Ctext x='50' y='68' font-family='Arial Black' font-size='40' font-weight='900' text-anchor='middle' fill='white'%3EJOB%3C/text%3E%3C/svg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Kanit:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Kanit:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #F5F3EE;
-    font-family: 'Sarabun', sans-serif;
-    color: #1A1A1A;
-    min-height: 100vh;
-  }
-  .kanit { font-family: 'Kanit', sans-serif; }
-  .mono { font-family: 'JetBrains Mono', monospace; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; min-height: 100vh; }
 
-  header { background: #FFF; border-bottom: 1px solid #D6D1C7; }
-  .header-inner {
-    max-width: 1200px; margin: 0 auto; padding: 20px;
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 12px;
-  }
-  .header-left { display: flex; align-items: center; gap: 14px; }
-  .home-btn {
-    width: 42px; height: 42px;
-    background: #F4EFD9; border: 1.5px solid #1A1A1A;
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all 0.15s;
-    text-decoration: none; color: #1A1A1A;
-  }
-  .home-btn:hover { background: #1A1A1A; color: #F4EFD9; }
-  .home-btn svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-  .header-title { font-family: 'Kanit', sans-serif; font-size: 20px; font-weight: 700; line-height: 1.1; }
-  .header-subtitle { font-size: 13px; color: #8A8278; margin-top: 2px; }
-  .header-date { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8A8278; text-align: right; }
+/* Header */
+.app-header {
+  background: #2D5016; color: #FFF;
+  padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.app-header-left { display: flex; align-items: center; gap: 12px; }
+.home-btn {
+  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.15); border: none;
+  border-radius: 8px; color: #FFF; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  text-decoration: none; font-size: 18px;
+}
+.home-btn:hover { background: rgba(255,255,255,0.25); }
+.app-title { font-family: 'Kanit', sans-serif; font-size: 18px; font-weight: 700; }
+.app-subtitle { font-size: 12px; opacity: 0.7; margin-top: 1px; }
+.btn-reset {
+  background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.4);
+  color: #FFF; padding: 8px 14px;
+  font-family: 'Kanit', sans-serif; font-size: 13px; font-weight: 500;
+  cursor: pointer; border-radius: 4px;
+  display: flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+.btn-reset:hover { background: rgba(255,255,255,0.25); }
 
-  .main-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
-  .tabs {
-    display: flex; gap: 0;
-    border-bottom: 1px solid #D6D1C7;
-    margin-bottom: 24px; overflow-x: auto;
-  }
-  .tab-btn {
-    padding: 14px 20px;
-    background: transparent; border: none;
-    font-family: 'Kanit', sans-serif; font-weight: 500; font-size: 15px;
-    color: #5A5550; cursor: pointer; position: relative;
-    letter-spacing: 0.02em; white-space: nowrap;
-  }
-  .tab-btn.active { color: #1A1A1A; }
-  .tab-btn.active::after {
-    content: ''; position: absolute;
-    bottom: -1px; left: 20px; right: 20px;
-    height: 3px; background: #2D5016;
-  }
+/* Main */
+.main { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
+.section { background: #FFF; border: 1px solid #E5E0D5; padding: 20px; margin-bottom: 16px; }
+.section-title {
+  font-family: 'Kanit', sans-serif; font-size: 17px; font-weight: 600;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.section-num {
+  width: 26px; height: 26px; background: #2D5016; color: #FFF;
+  border-radius: 50%; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
 
-  .card { background: #FFF; border: 1px solid #E5E0D5; padding: 24px; }
+/* Pill group */
+.pill-group {
+  display: inline-flex; background: #F5F3EE;
+  padding: 3px; gap: 3px; border-radius: 6px; width: 100%;
+}
+.pill-btn {
+  flex: 1; background: transparent; border: none;
+  padding: 10px 16px;
+  font-family: 'Kanit', sans-serif; font-size: 15px; font-weight: 500;
+  color: #5A5550; cursor: pointer; transition: all 0.15s; border-radius: 4px;
+}
+.pill-btn.active { background: #2D5016; color: #FFF; }
 
-  /* Form */
-  .form-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1A1A1A; }
-  .form-title { font-family: 'Kanit', sans-serif; font-size: 24px; font-weight: 700; }
-  .form-subtitle { font-size: 14px; color: #5A5550; margin-top: 4px; }
-  .form-grid { display: grid; gap: 18px; }
-  .form-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 16px;
-  }
-  .field-label {
-    display: block; font-size: 13px; font-weight: 600;
-    letter-spacing: 0.02em; color: #5A5550;
-    margin-bottom: 6px; text-transform: uppercase;
-  }
-  .field-input, .field-select {
-    width: 100%; padding: 10px 12px;
-    border: 1.5px solid #D6D1C7; background: #FFF;
-    font-size: 15px; color: #1A1A1A;
-    font-family: inherit; transition: border-color 0.15s;
-  }
-  .field-input:focus, .field-select:focus {
-    outline: 2px solid #2D5016; outline-offset: 1px;
-    border-color: #1A1A1A;
-  }
+/* Fields */
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+@media (max-width: 500px) { .field-row { grid-template-columns: 1fr; } }
+.field-label { font-size: 12px; font-weight: 600; color: #5A5550; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; display: block; }
+.field-select, .field-input {
+  width: 100%; padding: 10px 12px;
+  border: 1.5px solid #D6D1C7; background: #FFF;
+  font-size: 15px; color: #1A1A1A; font-family: inherit;
+}
+.field-select:focus, .field-input:focus { outline: 2px solid #2D5016; outline-offset: 1px; }
 
-  /* Work-type Pills */
-  .pill-group {
-    display: inline-flex;
-    background: #F5F3EE;
-    padding: 3px;
-    gap: 3px;
-    border-radius: 6px;
-  }
-  .pill-btn {
-    background: transparent; border: none;
-    padding: 9px 22px;
-    font-family: 'Kanit', sans-serif; font-size: 14px;
-    font-weight: 500; color: #5A5550;
-    cursor: pointer; transition: all 0.15s;
-    border-radius: 4px;
-  }
-  .pill-btn:hover { color: #1A1A1A; }
-  .pill-btn.active { background: #2D5016; color: #FFF; }
+/* Upload */
+.upload-btn {
+  display: block; width: 100%; padding: 22px 16px;
+  background: #FFF; border: 2px dashed #8A8278;
+  text-align: center; cursor: pointer; transition: all 0.15s;
+  font-family: inherit;
+}
+.upload-btn:hover { border-color: #2D5016; background: #F0F5E8; }
+.upload-btn-icon { font-size: 36px; margin-bottom: 6px; }
+.upload-btn-text { font-family: 'Kanit', sans-serif; font-size: 16px; font-weight: 600; color: #1A1A1A; }
+.upload-btn-hint { font-size: 13px; color: #8A8278; margin-top: 3px; }
 
-  /* Upload */
-  .upload-area {
-    border: 2px dashed #8A8278; background: #FAFAF7;
-    padding: 40px 20px; text-align: center;
-    cursor: pointer; transition: all 0.15s;
-  }
-  .upload-area:hover, .upload-area.drag {
-    border-color: #2D5016; background: #F0F5E8;
-  }
-  .upload-icon { font-size: 40px; margin-bottom: 8px; }
-  .upload-text {
-    font-family: 'Kanit', sans-serif;
-    font-size: 16px; font-weight: 500;
-  }
-  .upload-hint { font-size: 13px; color: #8A8278; margin-top: 4px; }
+/* Status */
+.status-box { padding: 10px 14px; font-size: 13px; margin-bottom: 12px; }
+.status-box.info { background: #F4EFD9; border-left: 3px solid #2D5016; color: #5A5550; }
+.status-box.warn { background: #FFE8D6; border-left: 3px solid #C1440E; color: #C1440E; }
+.status-box.success { background: #E8F5E9; border-left: 3px solid #2D5016; color: #2D5016; }
 
-  /* Job items in form (before save) */
-  .job-list { display: grid; gap: 10px; margin-top: 4px; }
-  .job-item {
-    background: #FFF;
-    border: 1px solid #E5E0D5;
-    padding: 14px;
-    display: grid;
-    grid-template-columns: auto auto 1fr auto;
-    gap: 14px;
-    align-items: start;
-  }
-  .job-item.dragging { opacity: 0.4; }
-  .drag-handle {
-    cursor: grab;
-    color: #8A8278;
-    font-size: 18px;
-    user-select: none;
-    padding: 4px;
-    line-height: 1;
-  }
-  .drag-handle:active { cursor: grabbing; }
-  .job-thumb {
-    width: 100px; height: 100px;
-    object-fit: cover;
-    border: 1px solid #E5E0D5;
-    background: #F5F3EE;
-  }
-  .job-fields { display: grid; gap: 8px; min-width: 0; }
-  .job-num {
-    font-family: 'Kanit', sans-serif;
-    font-weight: 600; font-size: 15px;
-    color: #2D5016;
-  }
-  .job-num .badge {
-    display: inline-block;
-    font-size: 11px; padding: 2px 8px;
-    margin-left: 6px;
-    background: #C1440E; color: #FFF;
-    font-family: 'Sarabun', sans-serif;
-    font-weight: 500;
-  }
-  .job-num .badge.saved { background: #2D5016; }
-  .job-input-small {
-    width: 100%; padding: 7px 10px;
-    border: 1.5px solid #D6D1C7;
-    font-size: 13px; font-family: inherit;
-  }
-  .job-input-small:focus {
-    outline: 2px solid #2D5016; outline-offset: 1px;
-    border-color: #1A1A1A;
-  }
-  .job-remove {
-    background: transparent; border: 1.5px solid #C1440E;
-    color: #C1440E;
-    width: 32px; height: 32px;
-    cursor: pointer;
-    font-size: 16px;
-    align-self: start;
-  }
-  .job-remove:hover { background: #C1440E; color: #FFF; }
+/* Job list */
+.job-list { display: grid; gap: 10px; margin-top: 12px; }
+.job-item {
+  background: #FFF; border: 1.5px solid #E5E0D5; padding: 12px;
+  display: grid; grid-template-columns: auto auto 1fr auto;
+  gap: 12px; align-items: start;
+}
+.job-item:hover { border-color: #2D5016; }
+.drag-handle { cursor: grab; color: #8A8278; font-size: 20px; padding: 4px 2px; user-select: none; line-height: 1; }
+.drag-handle:active { cursor: grabbing; }
+.job-thumb { width: 90px; height: 90px; object-fit: cover; border: 1px solid #E5E0D5; background: #F5F3EE; }
+.job-fields { min-width: 0; }
+.job-num { font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+.job-num .badge { font-size: 11px; padding: 2px 7px; margin-left: 6px; font-family: 'Sarabun', sans-serif; font-weight: 500; }
+.badge-new { background: #C1440E; color: #FFF; }
+.badge-saved { background: #2D5016; color: #FFF; }
+.job-input { width: 100%; padding: 6px 10px; border: 1.5px solid #D6D1C7; font-size: 13px; font-family: inherit; margin-top: 6px; }
+.job-input:focus { outline: 2px solid #2D5016; outline-offset: 1px; }
+.job-remove {
+  background: transparent; border: 1.5px solid #C1440E; color: #C1440E;
+  width: 30px; height: 30px; cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+.job-remove:hover { background: #C1440E; color: #FFF; }
 
-  /* Buttons */
-  .btn-primary {
-    background: #1A1A1A; color: #F5F3EE; border: none;
-    padding: 12px 24px; font-weight: 600; cursor: pointer;
-    font-family: inherit; transition: all 0.15s; font-size: 15px;
-  }
-  .btn-primary:hover { background: #2D5016; }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-secondary {
-    background: transparent; color: #1A1A1A;
-    border: 1.5px solid #1A1A1A;
-    padding: 10px 20px; font-weight: 500; cursor: pointer;
-    font-family: inherit; transition: all 0.15s; font-size: 14px;
-  }
-  .btn-secondary:hover { background: #1A1A1A; color: #F5F3EE; }
-  .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-print {
-    background: #2D5016; color: #FFF; border: none;
-    padding: 12px 24px; font-weight: 600; cursor: pointer;
-    font-family: inherit; font-size: 15px;
-    display: inline-flex; align-items: center; gap: 8px;
-  }
-  .btn-print:hover { background: #1A1A1A; }
-  .btn-print:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-danger-small {
-    background: transparent; color: #C1440E;
-    border: 1.5px solid #C1440E;
-    padding: 6px 12px; font-weight: 500; cursor: pointer;
-    font-family: inherit; font-size: 13px;
-  }
-  .btn-danger-small:hover { background: #C1440E; color: #FFF; }
+/* Action buttons */
+.action-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.btn-save {
+  background: #1A1A1A; color: #FFF; border: none;
+  padding: 12px 24px; font-family: 'Kanit', sans-serif;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; flex: 1;
+  justify-content: center; min-width: 140px;
+}
+.btn-save:hover { background: #2D5016; }
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-export {
+  background: #C1440E; color: #FFF; border: none;
+  padding: 12px 24px; font-family: 'Kanit', sans-serif;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; flex: 1;
+  justify-content: center; min-width: 140px;
+}
+.btn-export:hover { background: #1A1A1A; }
+.btn-export:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  /* Info Box */
-  .info-box {
-    background: #F4EFD9; border-left: 3px solid #2D5016;
-    padding: 12px 14px;
-    font-size: 13px; color: #5A5550;
-  }
-  .info-box.warn { border-left-color: #C1440E; background: #FFE8D6; }
+/* Print preview */
+.preview-section { display: none; }
+.preview-section.show { display: block; }
+.preview-header {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+}
+.preview-title { font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 16px; }
+.preview-stats { font-size: 13px; color: #8A8278; }
 
-  /* Empty state */
-  .empty-state { padding: 60px 20px; text-align: center; color: #8A8278; }
-  .empty-state-title { font-family: 'Kanit', sans-serif; font-size: 18px; margin-bottom: 8px; }
+/* Print page */
+.print-page {
+  background: #FFF; border: 1px solid #E5E0D5;
+  margin-bottom: 12px; padding: 10mm 12mm;
+  width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.print-page-header { text-align: center; border-bottom: 2px solid #1A1A1A; padding-bottom: 8px; margin-bottom: 10px; }
+.print-title { font-family: 'Kanit', sans-serif; font-weight: 700; font-size: 20px; }
+.print-meta { font-family: 'Kanit', sans-serif; font-size: 14px; margin-top: 2px; }
+.print-grid { display: grid; gap: 6px; }
+.print-grid.cols-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; height: 200mm; }
+.print-grid.cols-2-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; height: 200mm; }
 
-  /* Print Preview Page (for screen) */
-  .print-controls {
-    background: #FFF; border: 1px solid #E5E0D5;
-    padding: 20px; margin-bottom: 16px;
-  }
-  .print-page {
-    background: #FFF; border: 1px solid #E5E0D5;
-    margin: 0 auto 20px; padding: 10mm 12mm;
-    width: 210mm;
-    max-width: 100%;
-    min-height: 200px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  }
+/* Production cell */
+.print-cell-production {
+  border: 1px solid #D6D1C7; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: #FAFAF7; min-height: 0;
+}
+.print-cell-production img { width: 100%; height: 100%; object-fit: contain; }
+.print-cell-empty { background: #F5F3EE; width: 100%; height: 100%; }
 
-  /* === NEW PRINT HEADER === */
-  .print-page-header {
-    text-align: center;
-    padding-bottom: 8px;
-    margin-bottom: 10px;
-    border-bottom: 2px solid #1A1A1A;
-  }
-  .print-title {
-    font-family: 'Kanit', sans-serif;
-    font-weight: 700;
-    font-size: 22px;
-    line-height: 1.2;
-  }
-  .print-meta {
-    font-family: 'Kanit', sans-serif;
-    font-size: 16px;
-    font-weight: 400;
-    color: #1A1A1A;
-    margin-top: 2px;
-  }
+/* Installation cell */
+.print-cell-install {
+  border: 1px solid #D6D1C7; padding: 5px 6px;
+  display: grid; grid-template-columns: auto 1fr;
+  grid-template-rows: 1fr auto; gap: 4px;
+  min-height: 0; overflow: hidden;
+}
+.print-cell-num {
+  font-family: 'Archivo Black', sans-serif; font-size: 26px;
+  line-height: 1; color: #1A1A1A;
+  padding-right: 5px; align-self: start;
+  grid-row: 1; grid-column: 1;
+}
+.print-cell-img-wrap {
+  grid-row: 1; grid-column: 2; min-height: 0;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.print-cell-img-wrap img { width: 100%; height: 100%; object-fit: contain; }
+.print-cell-img-wrap .empty-cell { background: #F5F3EE; width: 100%; height: 100%; }
+.print-field-area { grid-row: 2; grid-column: 1 / -1; display: grid; gap: 3px; }
+.print-field-row {
+  display: flex; align-items: baseline; gap: 4px;
+  font-family: 'Sarabun', sans-serif; font-size: 10px; color: #1A1A1A;
+}
+.print-field-label { white-space: nowrap; font-weight: 600; }
+.print-field-line {
+  flex: 1; border-bottom: 1px solid #1A1A1A;
+  min-width: 0; height: 14px; padding-left: 4px;
+  font-size: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
 
-  /* === PRODUCTION GRID (2×2) === */
-  .print-grid { display: grid; gap: 8px; }
-  .print-grid.cols-2 {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    height: calc(297mm - 56mm);
-  }
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1A1A1A; color: #FFF; padding: 12px 20px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15); z-index: 100;
+  font-weight: 500; display: none; border-radius: 4px; white-space: nowrap;
+}
+.toast.show { display: block; }
+.toast.ok { background: #2D5016; }
+.toast.error { background: #C1440E; }
 
-  /* Production cell — image only */
-  .print-cell-production {
-    border: 1px solid #D6D1C7;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #FAFAF7;
-    min-height: 0;
-  }
-  .print-cell-production img {
-    width: 100%; height: 100%;
-    object-fit: contain;
-  }
-  .print-cell-production .print-cell-img-placeholder {
-    color: #C8C4BC;
-    font-family: 'Kanit', sans-serif;
-    font-size: 14px;
-    text-align: center;
-  }
+/* Loading */
+.loading-overlay {
+  position: fixed; inset: 0; background: rgba(245,243,238,0.88);
+  z-index: 60; display: none; align-items: center; justify-content: center;
+}
+.loading-overlay.show { display: flex; }
+.loading-box { background: #FFF; padding: 22px 32px; font-family: 'Kanit', sans-serif; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
 
-  /* === INSTALLATION GRID (2×3) === */
-  .print-grid.cols-2-3 {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr 1fr;
-    height: calc(297mm - 56mm);
-  }
+/* Role Tabs */
+.role-tabs {
+  background: #FFF; border-bottom: 1px solid #D6D1C7;
+  display: flex; overflow-x: auto;
+}
+.role-tab {
+  padding: 14px 24px; background: transparent; border: none;
+  font-family: 'Kanit', sans-serif; font-weight: 500; font-size: 15px;
+  color: #5A5550; cursor: pointer; position: relative; white-space: nowrap;
+}
+.role-tab.active { color: #1A1A1A; }
+.role-tab.active::after {
+  content: ''; position: absolute;
+  bottom: 0; left: 20px; right: 20px;
+  height: 3px; background: #2D5016;
+}
+.role-tab:first-child.active::after { background: #2D5016; }
+.role-tab:last-child.active::after { background: #C1440E; }
+.tab-page { display: none; }
+.tab-page.active { display: block; }
 
-  /* Installation cell — number + image + lines */
-  .print-cell-install {
-    border: 1px solid #D6D1C7;
-    padding: 5px 6px;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-rows: 1fr auto;
-    gap: 4px;
-    min-height: 0;
-    overflow: hidden;
-  }
-  .print-cell-num {
-    font-family: 'Archivo Black', sans-serif;
-    font-size: 28px;
-    line-height: 1;
-    color: #1A1A1A;
-    padding-right: 6px;
-    align-self: start;
-    grid-row: 1;
-    grid-column: 1;
-  }
-  .print-cell-img-wrap {
-    grid-row: 1;
-    grid-column: 2;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-  .print-cell-img-wrap img {
-    width: 100%; height: 100%;
-    object-fit: contain;
-  }
-  .print-cell-img-placeholder {
-    color: #C8C4BC;
-    font-family: 'Kanit', sans-serif;
-    font-size: 13px;
-    text-align: center;
-    background: #F5F3EE;
-    width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
-    border: 1.5px dashed #D6D1C7;
-  }
-  .print-field-area {
-    grid-row: 2;
-    grid-column: 1 / -1;
-    display: grid;
-    gap: 3px;
-  }
-  .print-field-row {
-    display: flex; align-items: baseline; gap: 4px;
-    font-family: 'Sarabun', sans-serif;
-    font-size: 10px;
-    color: #1A1A1A;
-  }
-  .print-field-label { white-space: nowrap; font-weight: 600; }
-  .print-field-line {
-    flex: 1;
-    border-bottom: 1px solid #1A1A1A;
-    min-width: 0;
-    height: 14px;
-    padding-left: 4px;
-    font-size: 10px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
+/* Summary */
+.summary-total-card {
+  background: #FFF; border: 2px solid #1A1A1A;
+  padding: 20px; margin-bottom: 12px;
+  display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap; gap: 12px;
+}
+.summary-date-label { font-family: 'Kanit', sans-serif; font-size: 20px; font-weight: 700; }
+.summary-total-num { font-family: 'Kanit', sans-serif; font-size: 40px; font-weight: 800; color: #C1440E; line-height: 1; }
+.summary-total-hint { font-size: 13px; color: #8A8278; }
+.summary-section-label {
+  font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 17px;
+  margin: 16px 0 8px; display: flex; align-items: center; gap: 8px;
+}
+.summary-card { background: #FFF; border: 1px solid #E5E0D5; padding: 18px; margin-bottom: 10px; }
+.summary-card-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-bottom: 10px; margin-bottom: 10px;
+  border-bottom: 1px solid #E5E0D5; flex-wrap: wrap; gap: 8px;
+}
+.summary-team-name {
+  font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.badge-type { font-size: 11px; padding: 2px 8px; color: #FFF; font-weight: 500; }
+.badge-prod { background: #2D5016; }
+.badge-inst { background: #C1440E; }
+.summary-team-count { font-family: 'Kanit', sans-serif; font-weight: 700; font-size: 20px; color: #C1440E; }
+.thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+.thumb-cell { position: relative; aspect-ratio: 1; border: 1px solid #E5E0D5; overflow: hidden; }
+.thumb-cell img { width: 100%; height: 100%; object-fit: cover; }
+.thumb-loc {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,0.7); color: #FFF;
+  padding: 3px 6px; font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.summary-controls {
+  background: #FFF; border: 1px solid #E5E0D5;
+  padding: 16px 20px; margin-bottom: 16px;
+  display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+}
+.btn-summary-load {
+  background: #1A1A1A; color: #FFF; border: none;
+  padding: 10px 20px; font-family: 'Kanit', sans-serif;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-summary-load:hover { background: #C1440E; }
+.btn-summary-export {
+  background: #C1440E; color: #FFF; border: none;
+  padding: 10px 20px; font-family: 'Kanit', sans-serif;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-summary-export:hover { background: #1A1A1A; }
+.btn-summary-export:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  /* Export PNG button */
-  .btn-export-png {
-    background: #C1440E; color: #FFF; border: none;
-    padding: 12px 20px; font-weight: 600; cursor: pointer;
-    font-family: inherit; font-size: 14px;
-    display: inline-flex; align-items: center; gap: 8px;
-    transition: all 0.15s;
-  }
-  .btn-export-png:hover { background: #1A1A1A; }
-  .btn-export-png:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Header for summary tab — hide reset button */
+.header-upload-only { display: flex; }
+.header-summary-only { display: none; }
 
-  /* Summary page */
-  .summary-card {
-    background: #FFF; border: 1px solid #E5E0D5;
-    padding: 20px;
-    margin-bottom: 12px;
-  }
-  .summary-team-header {
-    display: flex; justify-content: space-between;
-    align-items: baseline;
-    padding-bottom: 12px; margin-bottom: 12px;
-    border-bottom: 1px solid #E5E0D5;
-  }
-  .summary-team-name {
-    font-family: 'Kanit', sans-serif;
-    font-weight: 600; font-size: 17px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .summary-team-tag {
-    font-size: 11px; padding: 2px 8px;
-    background: #2D5016; color: #FFF;
-    font-weight: 500;
-    border-radius: 3px;
-  }
-  .summary-team-tag.install { background: #C1440E; }
-  .summary-team-count {
-    font-family: 'Kanit', sans-serif;
-    font-weight: 700; font-size: 20px;
-    color: #C1440E;
-  }
-  .summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 8px;
-  }
-  .summary-thumb {
-    aspect-ratio: 1;
-    border: 1px solid #E5E0D5;
-    background: #F5F3EE;
-    object-fit: cover;
-  }
-  .summary-thumb-cell {
-    position: relative;
-    aspect-ratio: 1;
-    border: 1px solid #E5E0D5;
-    overflow: hidden;
-  }
-  .summary-thumb-cell img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-  }
-  .summary-thumb-loc {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    background: rgba(0,0,0,0.7); color: #FFF;
-    padding: 4px 6px;
-    font-size: 11px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
+/* Header color changes by active tab */
+.header-summary .app-header { background: #C1440E; }
 
-  /* Toast & loading */
-  .toast {
-    position: fixed; bottom: 24px; left: 50%;
-    transform: translateX(-50%);
-    background: #1A1A1A; color: #F5F3EE;
-    padding: 12px 20px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    z-index: 100;
-    font-weight: 500;
-    display: none;
-  }
-  .toast.show { display: block; }
-  .toast.error { background: #C1440E; }
+.hidden { display: none !important; }
+#jobItemsContainer:empty, #saveRow:empty { display: none; }
 
-  .loading-overlay {
-    position: fixed; inset: 0;
-    background: rgba(245, 243, 238, 0.85);
-    z-index: 60;
-    display: none;
-    align-items: center; justify-content: center;
-  }
-  .loading-overlay.show { display: flex; }
-  .loading-box {
-    background: #FFF; padding: 24px 32px;
-    font-family: 'Kanit', sans-serif; font-weight: 500;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  }
-
-  #jobItemsContainer:empty,
-  #saveButtonContainer:empty { display: none; }
-
-  .hidden { display: none !important; }
-  footer {
-    margin-top: 60px; padding-top: 24px; padding-bottom: 40px;
-    border-top: 1px solid #D6D1C7;
-    font-size: 13px; color: #8A8278; text-align: center;
-  }
-
-  @media (max-width: 640px) {
-    .tab-btn { padding: 12px 14px; font-size: 14px; }
-    .card { padding: 16px; }
-    .job-item {
-      grid-template-columns: auto 1fr auto;
-    }
-    .job-item .job-thumb { grid-column: 2; width: 80px; height: 80px; }
-    .print-page { padding: 6mm; }
-  }
-
-  /* PRINT STYLES */
-  @media print {
-    @page { size: A4 portrait; margin: 8mm; }
-    body { background: #FFF; }
-    header, .tabs, .print-controls, footer, .toast, .loading-overlay { display: none !important; }
-    .main-container { max-width: none; padding: 0; }
-    .print-page {
-      box-shadow: none; border: none;
-      width: auto; padding: 0;
-      margin: 0; min-height: 0;
-      page-break-after: always;
-    }
-    .print-page:last-child { page-break-after: auto; }
-    .print-grid.cols-2, .print-grid.cols-2-3 { height: calc(297mm - 48mm); }
-    .print-cell-production, .print-cell-install { border: 1px solid #999; }
-  }
+/* Print media */
+@media print {
+  @page { size: A4 portrait; margin: 8mm; }
+  body { background: #FFF; }
+  .app-header, .section:not(.preview-section), .toast, .loading-overlay { display: none !important; }
+  .main { padding: 0; max-width: none; }
+  .preview-section { display: block !important; }
+  .preview-header { display: none !important; }
+  .print-page { box-shadow: none; border: none; padding: 0; margin: 0; page-break-after: always; }
+  .print-page:last-child { page-break-after: auto; }
+  .print-grid.cols-2, .print-grid.cols-2-3 { height: calc(297mm - 44mm); }
+  .print-cell-production, .print-cell-install { border: 1px solid #999; }
+}
 </style>
 </head>
 <body>
 
-<header>
-  <div class="header-inner">
-    <div class="header-left">
-      <a href="index.html" class="home-btn" title="กลับหน้าหลัก">
-        <svg viewBox="0 0 24 24">
-          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
-      </a>
+<div id="appWrapper">
+
+<div class="app-header" id="appHeader">
+  <div class="app-header-left">
+    <a href="index.html" class="home-btn" title="กลับหน้าหลัก">🏠</a>
+    <div>
+      <div class="app-title" id="appTitle">ใบงานช่าง</div>
+      <div class="app-subtitle" id="appSubtitle">อัปโหลดใบงาน</div>
+    </div>
+  </div>
+  <button class="btn-reset" id="btnReset" onclick="confirmReset()">🗑️ เริ่มงานใหม่</button>
+</div>
+
+<!-- Role Tabs -->
+<div class="role-tabs">
+  <button class="role-tab active" data-role="upload" onclick="switchRole('upload')">📎 หัวหน้าช่าง</button>
+  <button class="role-tab" data-role="summary" onclick="switchRole('summary')">📊 สรุปงาน (พี่แคท)</button>
+</div>
+
+<!-- ========== TAB: UPLOAD ========== -->
+<div class="tab-page active" id="page-upload">
+<div class="main">
+
+  <!-- ① เลือกทีม/ประเภท/วันที่ -->
+  <div class="section">
+    <div class="section-title"><span class="section-num">1</span>เลือกประเภทและทีมช่าง</div>
+    <label class="field-label">ประเภทงาน</label>
+    <div class="pill-group">
+      <button class="pill-btn active" data-wt="production" onclick="selectWorkType('production')">🔨 ผลิต</button>
+      <button class="pill-btn" data-wt="installation" onclick="selectWorkType('installation')">🛠️ ติดตั้ง</button>
+    </div>
+    <div class="field-row">
       <div>
-        <div class="header-title">ระบบใบงานช่าง</div>
-        <div class="header-subtitle">Job Order Management</div>
+        <label class="field-label">ทีมช่าง</label>
+        <select class="field-select" id="teamSelect" onchange="onTeamDateChange()"></select>
       </div>
-    </div>
-    <div class="header-date" id="headerDate"></div>
-  </div>
-</header>
-
-<div class="main-container">
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="upload">📤 อัปโหลด</button>
-    <button class="tab-btn" data-tab="print">🖨️ ดู / ปริ้น</button>
-    <button class="tab-btn" data-tab="summary">📊 สรุป</button>
-  </div>
-
-  <!-- =========== TAB: UPLOAD =========== -->
-  <div id="tab-upload" class="tab-content">
-    <div class="card" style="max-width: 1000px;">
-      <div class="form-header">
-        <div class="form-title">แนบรูปใบงาน</div>
-        <div class="form-subtitle">เลือกประเภท + ทีม + วันที่ → ลากรูปเข้ามา → กดบันทึก</div>
-      </div>
-
-      <div class="form-grid">
-        <!-- Row 1: Work type + Date -->
-        <div class="form-row">
-          <div>
-            <label class="field-label">ประเภทงาน *</label>
-            <div class="pill-group">
-              <button class="pill-btn active" data-worktype="production" onclick="selectWorkType('production')">🔨 ผลิต</button>
-              <button class="pill-btn" data-worktype="installation" onclick="selectWorkType('installation')">🛠️ ติดตั้ง</button>
-            </div>
-          </div>
-          <div>
-            <label class="field-label">วันที่ *</label>
-            <input type="date" class="field-input" id="jobDate">
-          </div>
-        </div>
-
-        <!-- Row 2: Team -->
-        <div>
-          <label class="field-label">ทีมช่าง *</label>
-          <select class="field-select" id="teamSelect"></select>
-        </div>
-
-        <!-- Loading status -->
-        <div id="existingStatus"></div>
-
-        <!-- Upload Area -->
-        <div>
-          <label class="field-label">ลากรูปใบงาน (เลือกได้หลายรูป)</label>
-          <label class="upload-area" for="fileInput" id="dropZone">
-            <div class="upload-icon">📎</div>
-            <div class="upload-text">ลากรูปมาวางที่นี่ หรือคลิกเพื่อเลือก</div>
-            <div class="upload-hint">รองรับ JPG / PNG · เลือกหลายรูปพร้อมกันได้</div>
-            <input type="file" id="fileInput" accept="image/*" multiple style="display:none" onchange="handleFiles(event.target.files)">
-          </label>
-        </div>
-
-        <!-- Job Items List -->
-        <div id="jobItemsContainer"></div>
-
-        <!-- Save button -->
-        <div id="saveButtonContainer"></div>
+      <div>
+        <label class="field-label">วันที่</label>
+        <input type="date" class="field-input" id="jobDate" onchange="onTeamDateChange()">
       </div>
     </div>
   </div>
 
-  <!-- =========== TAB: PRINT =========== -->
-  <div id="tab-print" class="tab-content hidden">
-    <div class="print-controls">
-      <div class="form-row" style="gap:16px; margin-bottom:12px;">
-        <div>
-          <label class="field-label">ประเภท</label>
-          <div class="pill-group">
-            <button class="pill-btn active" data-print-worktype="production" onclick="selectPrintWorkType('production')">🔨 ผลิต</button>
-            <button class="pill-btn" data-print-worktype="installation" onclick="selectPrintWorkType('installation')">🛠️ ติดตั้ง</button>
-          </div>
-        </div>
-        <div>
-          <label class="field-label">โหมด</label>
-          <div class="pill-group">
-            <button class="pill-btn active" data-print-mode="single" onclick="selectPrintMode('single')">ทีมเดี่ยว</button>
-            <button class="pill-btn" data-print-mode="all" onclick="selectPrintMode('all')">ทุกทีม</button>
-          </div>
-        </div>
-        <div id="printTeamWrapper">
-          <label class="field-label">ทีม</label>
-          <select class="field-select" id="printTeam" onchange="loadPrintData()"></select>
-        </div>
-        <div>
-          <label class="field-label">วันที่</label>
-          <input type="date" class="field-input" id="printDate" onchange="loadPrintData()">
-        </div>
-      </div>
-      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-        <button class="btn-secondary" onclick="loadPrintData()">🔄 รีเฟรช</button>
-        <button class="btn-print" id="printBtn" onclick="window.print()" disabled>🖨️ ปริ้น</button>
-        <button class="btn-export-png" id="exportPrintBtn" onclick="exportPrintPNG()" disabled>📸 บันทึกเป็นรูป</button>
-        <span id="printStats" style="color:#8A8278; font-size:13px;"></span>
+  <!-- ② แนบรูป -->
+  <div class="section">
+    <div class="section-title"><span class="section-num">2</span>แนบรูปใบงาน</div>
+
+    <div id="existingStatus"></div>
+
+    <label class="upload-btn" for="fileInput">
+      <div class="upload-btn-icon">📎</div>
+      <div class="upload-btn-text">กดเพื่อเลือกรูป</div>
+      <div class="upload-btn-hint">เลือกได้หลายรูปพร้อมกัน · JPG / PNG</div>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none" onchange="handleFiles(event.target.files)">
+    </label>
+
+    <div id="jobItemsContainer"></div>
+
+    <div id="saveRow"></div>
+  </div>
+
+  <!-- ③ ตัวอย่าง + Export -->
+  <div class="section preview-section" id="previewSection">
+    <div class="preview-header">
+      <div>
+        <div class="preview-title">③ ตัวอย่างใบงาน</div>
+        <div class="preview-stats" id="previewStats"></div>
       </div>
     </div>
     <div id="printPagesContainer"></div>
-  </div>
-
-  <!-- =========== TAB: SUMMARY =========== -->
-  <div id="tab-summary" class="tab-content hidden">
-    <div class="print-controls">
-      <div class="form-row" style="gap:16px; margin-bottom:12px;">
-        <div>
-          <label class="field-label">วันที่</label>
-          <input type="date" class="field-input" id="summaryDate" onchange="loadSummary()">
-        </div>
-      </div>
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        <button class="btn-secondary" onclick="loadSummary()">🔄 รีเฟรช</button>
-        <button class="btn-print" id="exportSummaryBtn" onclick="exportSummaryPNG()">📸 Export PNG</button>
-      </div>
+    <div class="action-row" style="margin-top:14px;">
+      <button class="btn-export" id="exportBtn" onclick="exportAllPages()">📸 บันทึกเป็นรูป</button>
     </div>
-    <div id="summaryContainer"></div>
   </div>
 
-  <footer>ระบบใบงานช่าง · ข้อมูลเก็บอัตโนมัติ 7 วัน</footer>
-</div>
+</div><!-- end .main upload -->
+</div><!-- end #page-upload -->
+
+<!-- ========== TAB: SUMMARY ========== -->
+<div class="tab-page" id="page-summary">
+<div class="main">
+
+  <div class="summary-controls">
+    <div>
+      <label class="field-label">วันที่</label>
+      <input type="date" class="field-input" id="summaryDate">
+    </div>
+    <button class="btn-summary-load" onclick="loadSummary()">🔍 ดูสรุป</button>
+    <button class="btn-summary-export" id="exportSummaryBtn" onclick="exportSummaryPNG()" disabled>📸 Export PNG</button>
+  </div>
+
+  <div id="summaryContainer"></div>
+
+</div><!-- end .main summary -->
+</div><!-- end #page-summary -->
+
+</div><!-- end #appWrapper -->
 
 <div class="toast" id="toast"></div>
 <div class="loading-overlay" id="loadingOverlay">
@@ -652,113 +439,85 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbxjD9VZQyVHQNfvCvjahxpF83896Hibc8UmMa_VjFmkY-sbiZjFnq4z8rLapzPTB_SU/exec';
 
 const TEAMS = {
-  production: [
-    'พี่ชาติ/พี่พง/แมน',
-    'นอท/โต',
-    'เล็กซอยตัน/หลา',
-  ],
-  installation: [
-    'กุ่ง/เล็ก/เล',
-    'พี่วัด/อาว/เล็ก',
-  ],
+  production: ['พี่ชาติ/พี่พง/แมน', 'นอท/โต', 'เล็กซอยตัน/หลา'],
+  installation: ['กุ่ง/เล็ก/เล', 'พี่วัด/อาว/เล็ก'],
 };
 
-const TEAM_COLORS = {
-  'พี่ชาติ/พี่พง/แมน': '#C1440E',
-  'นอท/โต': '#2D5016',
-  'เล็กซอยตัน/หลา': '#8B5A2B',
-  'กุ่ง/เล็ก/เล': '#1E3A5F',
-  'พี่วัด/อาว/เล็ก': '#5B2C6F',
-};
-
-const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const THAI_MONTHS_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
 // ============================================================================
-//  STATE (Upload tab)
+//  STATE
 // ============================================================================
-let currentWorkType = 'production';
-let currentTeam = TEAMS.production[0];
-let currentDate = todayISO();
-let jobItems = []; // { id?, imageData?, imageUrl?, location, note, isNew }
-let sortableInstance = null;
-
-// Print tab
-let printWorkType = 'production';
-let printTeam = TEAMS.production[0];
-let printDate = todayISO();
-let printJobs = [];
+let workType = 'production';
+let jobItems = [];
+let sortableInst = null;
 
 // ============================================================================
-//  UTILITIES
+//  UTILS
 // ============================================================================
 function todayISO() {
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return y + '-' + m + '-' + dd;
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
-
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function esc(s) {
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-
-function formatThaiDate(iso) {
+function fmtDate(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  return d.getDate() + ' ' + THAI_MONTHS[d.getMonth()] + ' ' + (d.getFullYear() + 543);
+  const d = new Date(iso+'T00:00:00');
+  return d.getDate() + ' ' + THAI_MONTHS_FULL[d.getMonth()] + ' ' + (d.getFullYear()+543);
 }
-
-function showToast(msg, isError) {
+function fmtDateShort(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return d + '/' + m + '/' + String(Number(y)+543).slice(-2);
+}
+function showToast(msg, type) {
   const t = document.getElementById('toast');
   t.textContent = msg;
-  t.className = 'toast show' + (isError ? ' error' : '');
-  setTimeout(() => t.classList.remove('show'), 3000);
+  t.className = 'toast show ' + (type||'');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 3000);
 }
-
 function showLoading(msg) {
   document.getElementById('loadingText').textContent = msg || 'กำลังโหลด...';
   document.getElementById('loadingOverlay').classList.add('show');
 }
-function hideLoading() {
-  document.getElementById('loadingOverlay').classList.remove('show');
-}
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
 
-function resizeImage(file, maxDim, quality) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
+function resizeImage(file, maxDim, q) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => {
       const img = new Image();
       img.onload = () => {
-        let { width, height } = img;
-        if (Math.max(width, height) > maxDim) {
-          if (width > height) { height = height * (maxDim / width); width = maxDim; }
-          else { width = width * (maxDim / height); height = maxDim; }
+        let {width: w, height: h} = img;
+        if (Math.max(w,h) > maxDim) {
+          if (w > h) { h = h*(maxDim/w); w = maxDim; }
+          else { w = w*(maxDim/h); h = maxDim; }
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        res(c.toDataURL('image/jpeg', q));
       };
-      img.onerror = reject;
+      img.onerror = rej;
       img.src = e.target.result;
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    r.onerror = rej;
+    r.readAsDataURL(file);
   });
 }
 
 // ============================================================================
-//  API CALLS
+//  API
 // ============================================================================
-async function apiCall(payload) {
+async function apiCall(body) {
   const res = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const json = await res.json();
@@ -766,651 +525,442 @@ async function apiCall(payload) {
   return json;
 }
 
-async function apiListJobs(workType, team, date) {
-  return apiCall({ action: 'job_list', workType, team, date });
-}
-async function apiCreateJobs(payload) {
-  return apiCall({ action: 'job_create', payload });
-}
-async function apiDeleteJob(id) {
-  return apiCall({ action: 'job_delete', id });
-}
-async function apiUpdateJob(id, payload) {
-  return apiCall({ action: 'job_update', id, payload });
-}
-async function apiReorderJobs(ids) {
-  return apiCall({ action: 'job_reorder', ids });
-}
-async function apiSummary(date) {
-  return apiCall({ action: 'job_summary', date });
-}
-
 // ============================================================================
-//  TABS
-// ============================================================================
-function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.tab === name);
-  });
-  document.querySelectorAll('.tab-content').forEach(c => {
-    c.classList.toggle('hidden', c.id !== 'tab-' + name);
-  });
-  if (name === 'upload') loadExisting();
-  if (name === 'print') loadPrintData();
-  if (name === 'summary') loadSummary();
-}
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-});
-
-// ============================================================================
-//  UPLOAD TAB
+//  TEAM / DATE SELECTORS
 // ============================================================================
 function selectWorkType(wt) {
-  currentWorkType = wt;
-  document.querySelectorAll('[data-worktype]').forEach(b => {
-    b.classList.toggle('active', b.dataset.worktype === wt);
-  });
-  populateTeamSelect();
-  loadExisting();
+  workType = wt;
+  document.querySelectorAll('[data-wt]').forEach(b => b.classList.toggle('active', b.dataset.wt === wt));
+  populateTeams();
+  onTeamDateChange();
 }
 
-function populateTeamSelect() {
+function populateTeams() {
   const sel = document.getElementById('teamSelect');
-  sel.innerHTML = TEAMS[currentWorkType].map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  if (!TEAMS[currentWorkType].includes(currentTeam)) {
-    currentTeam = TEAMS[currentWorkType][0];
-  }
-  sel.value = currentTeam;
+  sel.innerHTML = TEAMS[workType].map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
 }
 
-document.getElementById('teamSelect').addEventListener('change', (e) => {
-  currentTeam = e.target.value;
+function onTeamDateChange() {
+  // Reset local job list + reload existing
+  jobItems = [];
+  renderJobItems();
   loadExisting();
-});
-
-document.getElementById('jobDate').addEventListener('change', (e) => {
-  currentDate = e.target.value;
-  loadExisting();
-});
+}
 
 async function loadExisting() {
   const status = document.getElementById('existingStatus');
-  status.innerHTML = '<div class="info-box">⏳ กำลังโหลดข้อมูลเดิม...</div>';
-  jobItems = [];
+  const team = document.getElementById('teamSelect').value;
+  const date = document.getElementById('jobDate').value;
+  if (!team || !date) { status.innerHTML = ''; return; }
 
+  status.innerHTML = '<div class="status-box info">⏳ กำลังโหลดข้อมูลเดิม...</div>';
   try {
-    // Timeout 10 วินาที
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
     const res = await Promise.race([
-      apiListJobs(currentWorkType, currentTeam, currentDate),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('หมดเวลา — กรุณารีเฟรช')), 10000)),
+      apiCall({action:'job_list', workType, team, date}),
+      new Promise((_,r) => setTimeout(() => r(new Error('หมดเวลา — กรุณาลองใหม่')), 12000)),
     ]);
-    clearTimeout(timeout);
-
-    const existing = (res.jobs || []).map(j => ({
-      id: j.id,
-      imageUrl: j.imageUrl,
-      location: j.location || '',
-      note: j.note || '',
-      isNew: false,
+    const existing = (res.jobs||[]).map(j => ({
+      id: j.id, imageUrl: j.imageUrl,
+      location: j.location||'', note: j.note||'', isNew: false,
     }));
     jobItems = existing;
-
     if (existing.length === 0) {
-      status.innerHTML = '<div class="info-box">📂 ยังไม่มีข้อมูลของ <strong>' + escapeHtml(currentTeam) + '</strong> วันที่ ' + formatThaiDate(currentDate) + ' — ลากรูปเข้ามาได้เลย</div>';
+      status.innerHTML = '<div class="status-box info">📂 ยังไม่มีใบงานของ <strong>' + esc(team) + '</strong> วันนี้ — กดเลือกรูปด้านล่าง</div>';
     } else {
-      status.innerHTML = '<div class="info-box">📂 มีรูปที่บันทึกไว้แล้ว <strong>' + existing.length + ' ใบ</strong> — ลากรูปใหม่เพิ่มได้</div>';
+      status.innerHTML = '<div class="status-box success">📂 มีใบงานที่บันทึกไว้ <strong>' + existing.length + ' ใบ</strong> — เพิ่มหรือแก้ไขได้เลย</div>';
     }
     renderJobItems();
   } catch (err) {
-    status.innerHTML = '<div class="info-box warn">⚠️ ' + escapeHtml(err.message) +
-      '<br><button class="btn-secondary" style="margin-top:8px; font-size:13px;" onclick="loadExisting()">🔄 ลองใหม่</button>' +
-      '</div>';
+    status.innerHTML = '<div class="status-box warn">⚠️ ' + esc(err.message) +
+      ' <button onclick="loadExisting()" style="margin-left:8px;padding:4px 10px;cursor:pointer;font-size:12px;">🔄 ลองใหม่</button></div>';
   }
 }
 
+// ============================================================================
+//  FILE UPLOAD
+// ============================================================================
 async function handleFiles(files) {
-  if (!files || files.length === 0) return;
-  showLoading('กำลังประมวลผลรูป (' + files.length + ' รูป)...');
+  if (!files || !files.length) return;
+  showLoading('กำลังประมวลผล ' + files.length + ' รูป...');
   try {
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) continue;
-      const data = await resizeImage(file, 1400, 0.82);
-      jobItems.push({
-        tempId: uid(),
-        imageData: data,
-        location: '',
-        note: '',
-        isNew: true,
-      });
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) continue;
+      const data = await resizeImage(f, 1400, 0.82);
+      jobItems.push({ tempId: uid(), imageData: data, location: '', note: '', isNew: true });
     }
     renderJobItems();
     document.getElementById('fileInput').value = '';
-  } catch (err) {
-    showToast('ประมวลผลรูปล้มเหลว: ' + err.message, true);
-  } finally {
-    hideLoading();
-  }
+  } catch (e) { showToast('ประมวลผลรูปไม่สำเร็จ', 'error'); }
+  finally { hideLoading(); }
 }
 
+// ============================================================================
+//  RENDER JOB LIST
+// ============================================================================
 function renderJobItems() {
   const container = document.getElementById('jobItemsContainer');
-  const saveContainer = document.getElementById('saveButtonContainer');
+  const saveRow = document.getElementById('saveRow');
+  const previewSection = document.getElementById('previewSection');
 
   if (jobItems.length === 0) {
     container.innerHTML = '';
-    saveContainer.innerHTML = '';
+    saveRow.innerHTML = '';
+    previewSection.classList.remove('show');
+    document.getElementById('printPagesContainer').innerHTML = '';
     return;
   }
 
-  const showLocFields = currentWorkType === 'installation';
+  const isInstall = workType === 'installation';
   const newCount = jobItems.filter(j => j.isNew).length;
 
-  let html = '<label class="field-label">รายการ (' + jobItems.length + ' ใบ) — ลาก ⋮⋮ เพื่อเรียง</label>';
-  html += '<div class="job-list" id="jobList">';
+  let html = '<div class="job-list" id="jobList">';
   html += jobItems.map((item, idx) => {
-    const itemKey = item.id || item.tempId;
+    const key = item.id || item.tempId;
     const imgSrc = item.imageData || item.imageUrl || '';
-    const badge = item.isNew
-      ? '<span class="badge">ใหม่</span>'
-      : '<span class="badge saved">บันทึกแล้ว</span>';
-
-    return '<div class="job-item" data-key="' + itemKey + '">' +
+    const badgeCls = item.isNew ? 'badge-new' : 'badge-saved';
+    const badgeText = item.isNew ? 'ใหม่' : 'บันทึกแล้ว';
+    return '<div class="job-item" data-key="' + key + '">' +
       '<div class="drag-handle">⋮⋮</div>' +
-      '<img class="job-thumb" src="' + imgSrc + '" referrerpolicy="no-referrer" onerror="this.style.background=\'#F5F3EE\'">' +
+      '<img class="job-thumb" src="' + esc(imgSrc) + '" referrerpolicy="no-referrer" onerror="this.style.background=\'#F5F3EE\'">' +
       '<div class="job-fields">' +
-        '<div class="job-num">งานที่ ' + (idx + 1) + badge + '</div>' +
-        (showLocFields ?
-          '<input class="job-input-small" placeholder="สถานที่ (ไม่บังคับ)" value="' + escapeHtml(item.location) + '" oninput="updateItemField(\'' + itemKey + '\',\'location\',this.value)">' +
-          '<input class="job-input-small" placeholder="หมายเหตุ (ไม่บังคับ)" value="' + escapeHtml(item.note) + '" oninput="updateItemField(\'' + itemKey + '\',\'note\',this.value)">'
-          : ''
-        ) +
+        '<div class="job-num">ใบที่ ' + (idx+1) + ' <span class="badge ' + badgeCls + '">' + badgeText + '</span></div>' +
+        (isInstall
+          ? '<input class="job-input" placeholder="📍 สถานที่ (ไม่บังคับ)" value="' + esc(item.location) + '" oninput="updateField(\'' + key + '\',\'location\',this.value)">' +
+            '<input class="job-input" placeholder="📝 หมายเหตุ (ไม่บังคับ)" value="' + esc(item.note) + '" oninput="updateField(\'' + key + '\',\'note\',this.value)">'
+          : '') +
       '</div>' +
-      '<button class="job-remove" onclick="removeItem(\'' + itemKey + '\')" title="ลบ">×</button>' +
+      '<button class="job-remove" onclick="removeItem(\'' + key + '\')">×</button>' +
     '</div>';
   }).join('');
   html += '</div>';
-
   container.innerHTML = html;
 
-  // Init Sortable
-  if (sortableInstance) sortableInstance.destroy();
-  sortableInstance = Sortable.create(document.getElementById('jobList'), {
-    handle: '.drag-handle',
-    animation: 150,
-    ghostClass: 'dragging',
-    onEnd: handleReorder,
+  // Sortable
+  if (sortableInst) sortableInst.destroy();
+  sortableInst = Sortable.create(document.getElementById('jobList'), {
+    handle: '.drag-handle', animation: 150,
+    onEnd: () => {
+      const order = Array.from(document.getElementById('jobList').children).map(el => el.dataset.key);
+      jobItems.sort((a,b) => order.indexOf(a.id||a.tempId) - order.indexOf(b.id||b.tempId));
+      renderJobItems();
+    },
   });
 
   // Save button
-  let btnLabel;
-  if (newCount === 0) {
-    btnLabel = '💾 บันทึกข้อมูลที่แก้ไข';
-  } else if (jobItems.length === newCount) {
-    btnLabel = '💾 บันทึก ' + newCount + ' รูป';
-  } else {
-    btnLabel = '💾 บันทึก (' + newCount + ' ใหม่ + แก้ไข)';
-  }
-  saveContainer.innerHTML = '<div style="display:flex; gap:12px; flex-wrap:wrap;">' +
-    '<button class="btn-primary" onclick="saveJobItems()">' + btnLabel + '</button>' +
-  '</div>';
+  const label = newCount === 0 ? '💾 บันทึกการแก้ไข'
+    : jobItems.length === newCount ? '💾 บันทึก ' + newCount + ' ใบ'
+    : '💾 บันทึก (เพิ่ม ' + newCount + ' ใบ)';
+  saveRow.innerHTML = '<div class="action-row" style="margin-top:4px;"><button class="btn-save" onclick="saveItems()">' + label + '</button></div>';
+
+  // Update preview
+  renderPreview();
 }
 
-function updateItemField(key, field, value) {
-  const item = jobItems.find(j => (j.id || j.tempId) === key);
-  if (item) item[field] = value;
+function updateField(key, field, val) {
+  const item = jobItems.find(j => (j.id||j.tempId) === key);
+  if (item) { item[field] = val; }
+  // Debounce preview update
+  clearTimeout(window._pvTimer);
+  window._pvTimer = setTimeout(renderPreview, 500);
 }
 
 async function removeItem(key) {
-  const idx = jobItems.findIndex(j => (j.id || j.tempId) === key);
+  const idx = jobItems.findIndex(j => (j.id||j.tempId) === key);
   if (idx === -1) return;
   const item = jobItems[idx];
-
-  if (item.isNew) {
-    // Just remove from local list
-    jobItems.splice(idx, 1);
-    renderJobItems();
-    return;
+  if (!item.isNew) {
+    if (!confirm('ลบใบงานนี้ออกจากระบบด้วยใช่หรือไม่?')) return;
+    showLoading('กำลังลบ...');
+    try { await apiCall({action:'job_delete', id: item.id}); }
+    catch (e) { showToast('ลบไม่สำเร็จ: ' + e.message, 'error'); hideLoading(); return; }
+    finally { hideLoading(); }
   }
-
-  // Already saved - confirm delete from server
-  if (!confirm('ลบรูปนี้ออกจากระบบใช่หรือไม่?')) return;
-  showLoading('กำลังลบ...');
-  try {
-    await apiDeleteJob(item.id);
-    jobItems.splice(idx, 1);
-    renderJobItems();
-    showToast('ลบเรียบร้อย');
-  } catch (err) {
-    showToast('ลบไม่สำเร็จ: ' + err.message, true);
-  } finally {
-    hideLoading();
-  }
-}
-
-function handleReorder(evt) {
-  // Re-arrange jobItems based on DOM order
-  const list = document.getElementById('jobList');
-  const newOrder = Array.from(list.children).map(el => el.dataset.key);
-  jobItems.sort((a, b) => {
-    const ka = a.id || a.tempId;
-    const kb = b.id || b.tempId;
-    return newOrder.indexOf(ka) - newOrder.indexOf(kb);
-  });
-  // Re-render to update item numbers
+  jobItems.splice(idx, 1);
   renderJobItems();
+  showToast('ลบเรียบร้อย', 'ok');
 }
 
-async function saveJobItems() {
-  const newItems = jobItems.filter(j => j.isNew);
-  const editedItems = jobItems.filter(j => !j.isNew);
+// ============================================================================
+//  SAVE
+// ============================================================================
+async function saveItems() {
+  const team = document.getElementById('teamSelect').value;
+  const date = document.getElementById('jobDate').value;
+  if (!team || !date) { showToast('กรุณาเลือกทีมและวันที่', 'error'); return; }
 
   showLoading('กำลังบันทึก...');
   try {
-    // 1. Update existing items (location/note changes)
-    for (const item of editedItems) {
-      await apiUpdateJob(item.id, { location: item.location, note: item.note });
+    // Update existing
+    for (const item of jobItems.filter(j => !j.isNew)) {
+      await apiCall({action:'job_update', id:item.id, payload:{location:item.location, note:item.note}});
     }
-
-    // 2. Create new items
+    // Create new
+    const newItems = jobItems.filter(j => j.isNew);
     if (newItems.length > 0) {
-      const payload = {
-        workType: currentWorkType,
-        team: currentTeam,
-        jobDate: currentDate,
-        items: newItems.map(item => ({
-          imageData: item.imageData,
-          location: item.location,
-          note: item.note,
-        })),
-      };
-      const res = await apiCreateJobs(payload);
-      // Replace newItems with returned data (with id + imageUrl)
-      const created = res.jobs || [];
-      newItems.forEach((item, idx) => {
-        if (created[idx]) {
-          item.id = created[idx].id;
-          item.imageUrl = created[idx].imageUrl;
-          delete item.imageData;
-          delete item.tempId;
-          item.isNew = false;
+      const res = await apiCall({action:'job_create', payload:{
+        workType, team, jobDate: date,
+        items: newItems.map(i => ({imageData:i.imageData, location:i.location, note:i.note})),
+      }});
+      (res.jobs||[]).forEach((sj, idx) => {
+        const local = newItems[idx];
+        if (local && sj) {
+          local.id = sj.id; local.imageUrl = sj.imageUrl;
+          delete local.imageData; delete local.tempId; local.isNew = false;
         }
       });
     }
+    // Reorder
+    const ids = jobItems.filter(j => j.id).map(j => j.id);
+    if (ids.length > 0) await apiCall({action:'job_reorder', ids});
 
-    // 3. Update sort order
-    const allIds = jobItems.filter(j => j.id).map(j => j.id);
-    if (allIds.length > 0) {
-      await apiReorderJobs(allIds);
-    }
-
-    showToast('บันทึกเรียบร้อย');
+    showToast('บันทึกเรียบร้อย ✅', 'ok');
     renderJobItems();
-  } catch (err) {
-    showToast('บันทึกไม่สำเร็จ: ' + err.message, true);
-  } finally {
-    hideLoading();
-  }
+  } catch (e) { showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
+  finally { hideLoading(); }
 }
-
-// Drag-drop on upload area
-const dropZone = document.getElementById('dropZone');
-['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
-  e.preventDefault(); e.stopPropagation();
-  dropZone.classList.add('drag');
-}));
-['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, e => {
-  e.preventDefault(); e.stopPropagation();
-  dropZone.classList.remove('drag');
-}));
-dropZone.addEventListener('drop', e => {
-  if (e.dataTransfer.files && e.dataTransfer.files.length) {
-    handleFiles(e.dataTransfer.files);
-  }
-});
 
 // ============================================================================
-//  PRINT TAB
+//  PREVIEW + EXPORT
 // ============================================================================
-let printMode = 'single'; // 'single' | 'all'
-
-function selectPrintMode(mode) {
-  printMode = mode;
-  document.querySelectorAll('[data-print-mode]').forEach(b => {
-    b.classList.toggle('active', b.dataset.printMode === mode);
-  });
-  // ซ่อน/แสดง team select
-  const wrapper = document.getElementById('printTeamWrapper');
-  wrapper.style.display = mode === 'all' ? 'none' : '';
-  loadPrintData();
-}
-
-function selectPrintWorkType(wt) {
-  printWorkType = wt;
-  document.querySelectorAll('[data-print-worktype]').forEach(b => {
-    b.classList.toggle('active', b.dataset.printWorktype === wt);
-  });
-  populatePrintTeamSelect();
-  loadPrintData();
-}
-
-function populatePrintTeamSelect() {
-  const sel = document.getElementById('printTeam');
-  sel.innerHTML = TEAMS[printWorkType].map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  if (!TEAMS[printWorkType].includes(printTeam)) {
-    printTeam = TEAMS[printWorkType][0];
-  }
-  sel.value = printTeam;
-}
-
-async function loadPrintData() {
-  printTeam = document.getElementById('printTeam').value;
-  printDate = document.getElementById('printDate').value;
-  showLoading('กำลังโหลดข้อมูล...');
-  try {
-    if (printMode === 'all') {
-      // โหลดทุกทีมของ workType นี้
-      const allTeams = TEAMS[printWorkType];
-      const results = await Promise.all(
-        allTeams.map(t => apiListJobs(printWorkType, t, printDate))
-      );
-      // รวมเป็น array of {team, jobs}
-      printJobs = allTeams.map((t, i) => ({
-        team: t,
-        jobs: results[i].jobs || [],
-      })).filter(g => g.jobs.length > 0);
-    } else {
-      const res = await apiListJobs(printWorkType, printTeam, printDate);
-      printJobs = res.jobs || [];
-    }
-    renderPrint();
-  } catch (err) {
-    showToast('โหลดข้อมูลไม่สำเร็จ: ' + err.message, true);
-  } finally {
-    hideLoading();
-  }
-}
-
-function formatPrintDate(iso) {
-  // dd/mm/yy (พ.ศ. 2 หลักสุดท้าย)
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  const be = (parseInt(y) + 543).toString().slice(-2);
-  return d + '/' + m + '/' + be;
-}
-
-function buildPrintPages(team, jobs, workType) {
-  const isInstall = workType === 'installation';
-  const perPage = isInstall ? 6 : 4;
-  const typeLabel = isInstall ? 'ติดตั้ง' : 'ผลิต';
-  const totalPages = Math.ceil(jobs.length / perPage);
-  let html = '';
-
-  for (let p = 0; p < totalPages; p++) {
-    const start = p * perPage;
-    const pageJobs = jobs.slice(start, start + perPage);
-
-    // Header
-    const headerHtml =
-      '<div class="print-page-header">' +
-        '<div class="print-title">ใบงาน' + typeLabel + ' ' + perPage + ' งาน/หน้า</div>' +
-        '<div class="print-meta">ทีม' + typeLabel + ': ' + escapeHtml(team) +
-          '&nbsp;&nbsp;&nbsp;วันที่: ' + formatPrintDate(printDate) + '</div>' +
-      '</div>';
-
-    // Grid cells
-    let cellsHtml = '';
-    for (let i = 0; i < perPage; i++) {
-      const j = pageJobs[i];
-      const num = start + i + 1;
-      const numStr = String(num).padStart(2, '0');
-
-      if (isInstall) {
-        // Installation cell
-        const imgPart = j
-          ? '<img src="' + j.imageUrl + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2" style="width:100%;height:100%;object-fit:contain;">'
-          : '<div class="print-cell-img-placeholder">แนบรูปงาน</div>';
-
-        cellsHtml +=
-          '<div class="print-cell-install">' +
-            '<div class="print-cell-num">' + numStr + '</div>' +
-            '<div class="print-cell-img-wrap">' + imgPart + '</div>' +
-            '<div class="print-field-area">' +
-              '<div class="print-field-row">' +
-                '<span class="print-field-label">สถานที่:</span>' +
-                '<div class="print-field-line">' + escapeHtml((j && j.location) || '') + '</div>' +
-              '</div>' +
-              '<div class="print-field-row">' +
-                '<span class="print-field-label">หมายเหตุเพิ่มเติม:</span>' +
-                '<div class="print-field-line">' + escapeHtml((j && j.note) || '') + '</div>' +
-              '</div>' +
-            '</div>' +
-          '</div>';
-      } else {
-        // Production cell — image only
-        const imgPart = j
-          ? '<img src="' + j.imageUrl + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2" style="width:100%;height:100%;object-fit:contain;">'
-          : '<div class="print-cell-img-placeholder">แนบรูปงาน</div>';
-        cellsHtml += '<div class="print-cell-production">' + imgPart + '</div>';
-      }
-    }
-
-    const gridClass = isInstall ? 'cols-2-3' : 'cols-2';
-    html +=
-      '<div class="print-page">' +
-        headerHtml +
-        '<div class="print-grid ' + gridClass + '">' + cellsHtml + '</div>' +
-      '</div>';
-  }
-  return html;
-}
-
-function renderPrint() {
+function renderPreview() {
+  const previewSection = document.getElementById('previewSection');
   const container = document.getElementById('printPagesContainer');
-  const stats = document.getElementById('printStats');
-  const hasData = printMode === 'all'
-    ? Array.isArray(printJobs) && printJobs.length > 0
-    : Array.isArray(printJobs) && printJobs.length > 0;
+  const stats = document.getElementById('previewStats');
 
-  document.getElementById('printBtn').disabled = !hasData;
-  document.getElementById('exportPrintBtn').disabled = !hasData;
-
-  if (!hasData) {
-    container.innerHTML = '<div class="card empty-state">' +
-      '<div class="empty-state-title">ยังไม่มีข้อมูล</div>' +
-      '<div style="font-size:14px;">เลือกประเภท + วันที่ที่มีข้อมูล แล้วกดรีเฟรช</div>' +
-    '</div>';
-    stats.textContent = '';
+  if (jobItems.length === 0) {
+    previewSection.classList.remove('show');
     return;
   }
+  previewSection.classList.add('show');
+
+  const isInstall = workType === 'installation';
+  const perPage = isInstall ? 6 : 4;
+  const team = document.getElementById('teamSelect').value;
+  const date = document.getElementById('jobDate').value;
+  const totalPages = Math.ceil(jobItems.length / perPage);
+
+  stats.textContent = jobItems.length + ' ใบ → ' + totalPages + ' หน้า A4';
 
   let html = '';
-  if (printMode === 'all') {
-    let totalJobs = 0, totalPages = 0;
-    const perPage = printWorkType === 'installation' ? 6 : 4;
-    printJobs.forEach(g => {
-      totalJobs += g.jobs.length;
-      totalPages += Math.ceil(g.jobs.length / perPage);
-      html += buildPrintPages(g.team, g.jobs, printWorkType);
-    });
-    stats.textContent = totalJobs + ' ใบ · ' + printJobs.length + ' ทีม → ' + totalPages + ' หน้า A4';
-  } else {
-    const perPage = printWorkType === 'installation' ? 6 : 4;
-    const totalPages = Math.ceil(printJobs.length / perPage);
-    stats.textContent = printJobs.length + ' ใบ → ' + totalPages + ' หน้า A4';
-    html = buildPrintPages(printTeam, printJobs, printWorkType);
+  for (let p = 0; p < totalPages; p++) {
+    const start = p * perPage;
+    const pageItems = jobItems.slice(start, start + perPage);
+    html += buildPage(pageItems, start, isInstall, perPage, team, date, p+1, totalPages);
   }
   container.innerHTML = html;
 }
 
-async function exportPrintPNG() {
-  const container = document.getElementById('printPagesContainer');
-  if (!container || !container.firstChild) return;
+function buildPage(pageItems, start, isInstall, perPage, team, date, pageNum, totalPages) {
+  const typeLabel = isInstall ? 'ติดตั้ง' : 'ผลิต';
+  const gridClass = isInstall ? 'cols-2-3' : 'cols-2';
 
-  showLoading('กำลังสร้างรูป...');
+  let cells = '';
+  for (let i = 0; i < perPage; i++) {
+    const item = pageItems[i];
+    const numStr = String(start + i + 1).padStart(2, '0');
+    const imgSrc = item ? (item.imageData || item.imageUrl || '') : '';
+
+    if (isInstall) {
+      const imgPart = imgSrc
+        ? '<img src="' + esc(imgSrc) + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2">'
+        : '<div class="empty-cell"></div>';
+      cells += '<div class="print-cell-install">' +
+        '<div class="print-cell-num">' + numStr + '</div>' +
+        '<div class="print-cell-img-wrap">' + imgPart + '</div>' +
+        '<div class="print-field-area">' +
+          '<div class="print-field-row"><span class="print-field-label">สถานที่:</span>' +
+            '<div class="print-field-line">' + esc(item?.location||'') + '</div></div>' +
+          '<div class="print-field-row"><span class="print-field-label">หมายเหตุเพิ่มเติม:</span>' +
+            '<div class="print-field-line">' + esc(item?.note||'') + '</div></div>' +
+        '</div>' +
+      '</div>';
+    } else {
+      const imgPart = imgSrc
+        ? '<img src="' + esc(imgSrc) + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2">'
+        : '<div class="print-cell-empty"></div>';
+      cells += '<div class="print-cell-production">' + imgPart + '</div>';
+    }
+  }
+
+  return '<div class="print-page" id="printPage_' + (pageNum-1) + '">' +
+    '<div class="print-page-header">' +
+      '<div class="print-title">ใบงาน' + typeLabel + ' ' + perPage + ' งาน/หน้า</div>' +
+      '<div class="print-meta">ทีม' + typeLabel + ': ' + esc(team) + '&nbsp;&nbsp;&nbsp;วันที่: ' + fmtDateShort(date) + '</div>' +
+    '</div>' +
+    '<div class="print-grid ' + gridClass + '">' + cells + '</div>' +
+  '</div>';
+}
+
+// Export PNG — 1 file per page
+async function exportAllPages() {
+  const pages = document.querySelectorAll('[id^="printPage_"]');
+  if (!pages.length) return;
+
+  const team = document.getElementById('teamSelect').value;
+  const date = document.getElementById('jobDate').value;
+  const typeLabel = workType === 'production' ? 'ผลิต' : 'ติดตั้ง';
+
+  showLoading('กำลังสร้างรูป (' + pages.length + ' หน้า)...');
   await new Promise(r => setTimeout(r, 150));
   try {
-    const canvas = await html2canvas(container, {
-      backgroundColor: '#F5F3EE',
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      windowWidth: container.scrollWidth,
-    });
-    const dataUrl = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    const typeLabel = printWorkType === 'production' ? 'ผลิต' : 'ติดตั้ง';
-    const modeLabel = printMode === 'all' ? 'ทุกทีม' : printTeam;
-    a.download = 'ใบงาน-' + typeLabel + '-' + modeLabel + '-' + printDate + '.png';
-    a.click();
-    showToast('บันทึกรูปเรียบร้อย');
-  } catch (err) {
-    showToast('สร้างรูปไม่สำเร็จ: ' + err.message, true);
-  } finally {
-    hideLoading();
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await html2canvas(pages[i], {
+        backgroundColor: '#FFFFFF', scale: 2, useCORS: true, logging: false,
+      });
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'ใบงาน' + typeLabel + '-' + esc(team) + '-' + fmtDateShort(date) +
+        (pages.length > 1 ? '-หน้า' + (i+1) : '') + '.png';
+      a.click();
+      if (i < pages.length - 1) await new Promise(r => setTimeout(r, 300));
+    }
+    showToast('บันทึก ' + pages.length + ' รูปเรียบร้อย ✅', 'ok');
+  } catch (e) { showToast('สร้างรูปไม่สำเร็จ: ' + e.message, 'error'); }
+  finally { hideLoading(); }
+}
+
+// ============================================================================
+//  RESET
+// ============================================================================
+function confirmReset() {
+  if (!confirm('ล้างข้อมูลทั้งหมดและเริ่มงานใหม่ใช่หรือไม่?\n\n(ข้อมูลที่บันทึกแล้วยังอยู่ใน Google Sheets ไม่ถูกลบ)')) return;
+  jobItems = [];
+  document.getElementById('teamSelect').selectedIndex = 0;
+  document.getElementById('jobDate').value = todayISO();
+  document.getElementById('existingStatus').innerHTML = '';
+  renderJobItems();
+  showToast('ล้างฟอร์มเรียบร้อย', 'ok');
+  loadExisting();
+}
+
+// ============================================================================
+//  ROLE TABS
+// ============================================================================
+function switchRole(role) {
+  document.querySelectorAll('.role-tab').forEach(b => b.classList.toggle('active', b.dataset.role === role));
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.toggle('active', p.id === 'page-' + role));
+
+  const header = document.getElementById('appHeader');
+  const btnReset = document.getElementById('btnReset');
+  const title = document.getElementById('appTitle');
+  const subtitle = document.getElementById('appSubtitle');
+
+  if (role === 'upload') {
+    header.style.background = '#2D5016';
+    btnReset.style.display = 'flex';
+    title.textContent = 'ใบงานช่าง';
+    subtitle.textContent = 'อัปโหลดใบงาน';
+  } else {
+    header.style.background = '#C1440E';
+    btnReset.style.display = 'none';
+    title.textContent = 'สรุปใบงาน';
+    subtitle.textContent = 'Job Order Summary';
+    // Auto-load summary with today's date
+    if (!document.getElementById('summaryDate').value) {
+      document.getElementById('summaryDate').value = todayISO();
+    }
+    loadSummary();
   }
 }
 
 // ============================================================================
-//  SUMMARY TAB
+//  SUMMARY
 // ============================================================================
 async function loadSummary() {
   const date = document.getElementById('summaryDate').value;
   const container = document.getElementById('summaryContainer');
   document.getElementById('exportSummaryBtn').disabled = true;
-
   showLoading('กำลังโหลดสรุป...');
   try {
-    const res = await apiSummary(date);
+    const res = await apiCall({action: 'job_summary', date});
     renderSummary(res, date);
-  } catch (err) {
-    container.innerHTML = '<div class="card empty-state warn">โหลดไม่สำเร็จ: ' + escapeHtml(err.message) + '</div>';
-  } finally {
-    hideLoading();
-  }
+  } catch (e) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:#8A8278;font-family:Kanit,sans-serif;font-size:16px;">โหลดไม่สำเร็จ: ' + esc(e.message) + '</div>';
+  } finally { hideLoading(); }
 }
 
 function renderSummary(data, date) {
   const container = document.getElementById('summaryContainer');
   const groups = data.groups || [];
   const total = data.total || 0;
-
   document.getElementById('exportSummaryBtn').disabled = total === 0;
 
   if (total === 0) {
-    container.innerHTML = '<div class="card empty-state">' +
-      '<div class="empty-state-title">ยังไม่มีงานในวันที่นี้</div>' +
-      '<div style="font-size:14px;">' + formatThaiDate(date) + '</div>' +
-    '</div>';
+    container.innerHTML = '<div style="padding:60px 20px;text-align:center;color:#8A8278;">' +
+      '<div style="font-family:Kanit,sans-serif;font-size:18px;margin-bottom:6px;">ยังไม่มีข้อมูลในวันนี้</div>' +
+      '<div>' + fmtDate(date) + '</div></div>';
     return;
   }
 
-  // Group by workType
-  const productionGroups = groups.filter(g => g.workType === 'production');
-  const installationGroups = groups.filter(g => g.workType === 'installation');
+  const prodGroups = groups.filter(g => g.workType === 'production');
+  const instGroups = groups.filter(g => g.workType === 'installation');
 
   let html = '<div id="summaryExport">';
-  html += '<div class="card" style="margin-bottom:16px;">' +
-    '<div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;">' +
-      '<div>' +
-        '<div style="font-size:13px; color:#8A8278; text-transform:uppercase; letter-spacing:0.05em;">สรุปงาน</div>' +
-        '<div class="kanit" style="font-size:24px; font-weight:700; margin-top:2px;">' + formatThaiDate(date) + '</div>' +
-      '</div>' +
-      '<div style="text-align:right;">' +
-        '<div style="font-size:13px; color:#8A8278; text-transform:uppercase; letter-spacing:0.05em;">รวมทั้งหมด</div>' +
-        '<div class="kanit" style="font-size:36px; font-weight:800; color:#C1440E; line-height:1;">' + total + '</div>' +
-        '<div style="font-size:12px; color:#8A8278;">งาน</div>' +
-      '</div>' +
-    '</div>' +
+  html += '<div class="summary-total-card">' +
+    '<div><div class="summary-date-label">' + fmtDate(date) + '</div></div>' +
+    '<div style="text-align:right;"><div class="summary-total-num">' + total + '</div>' +
+    '<div class="summary-total-hint">งานรวมทั้งหมด</div></div>' +
   '</div>';
 
-  if (productionGroups.length > 0) {
-    html += '<div class="kanit" style="font-size:18px; font-weight:600; margin:20px 0 8px;">🔨 งานผลิต</div>';
-    html += productionGroups.map(g => buildGroupHtml(g, false)).join('');
+  if (prodGroups.length) {
+    html += '<div class="summary-section-label">🔨 งานผลิต</div>';
+    prodGroups.forEach(g => { html += buildSummaryCard(g, false); });
   }
-  if (installationGroups.length > 0) {
-    html += '<div class="kanit" style="font-size:18px; font-weight:600; margin:20px 0 8px;">🛠️ งานติดตั้ง</div>';
-    html += installationGroups.map(g => buildGroupHtml(g, true)).join('');
+  if (instGroups.length) {
+    html += '<div class="summary-section-label">🛠️ งานติดตั้ง</div>';
+    instGroups.forEach(g => { html += buildSummaryCard(g, true); });
   }
-
   html += '</div>';
   container.innerHTML = html;
 }
 
-function buildGroupHtml(group, isInstall) {
+function buildSummaryCard(g, isInstall) {
+  const thumbs = g.jobs.map(j => {
+    if (isInstall && j.location) {
+      return '<div class="thumb-cell">' +
+        '<img src="' + esc(j.imageUrl) + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2">' +
+        '<div class="thumb-loc">📍 ' + esc(j.location) + '</div></div>';
+    }
+    return '<div class="thumb-cell"><img src="' + esc(j.imageUrl) + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2"></div>';
+  }).join('');
+
   return '<div class="summary-card">' +
-    '<div class="summary-team-header">' +
+    '<div class="summary-card-header">' +
       '<div class="summary-team-name">' +
-        '<span class="summary-team-tag' + (isInstall ? ' install' : '') + '">' + (isInstall ? 'ติดตั้ง' : 'ผลิต') + '</span>' +
-        escapeHtml(group.team) +
+        '<span class="badge-type ' + (isInstall ? 'badge-inst' : 'badge-prod') + '">' + (isInstall ? 'ติดตั้ง' : 'ผลิต') + '</span>' +
+        esc(g.team) +
       '</div>' +
-      '<div class="summary-team-count">' + group.count + ' งาน</div>' +
+      '<div class="summary-team-count">' + g.count + ' งาน</div>' +
     '</div>' +
-    '<div class="summary-grid">' +
-      group.jobs.map(j => {
-        if (isInstall && j.location) {
-          return '<div class="summary-thumb-cell">' +
-            '<img src="' + j.imageUrl + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.3">' +
-            '<div class="summary-thumb-loc" title="' + escapeHtml(j.location) + '">📍 ' + escapeHtml(j.location) + '</div>' +
-          '</div>';
-        }
-        return '<img class="summary-thumb" src="' + j.imageUrl + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.3">';
-      }).join('') +
-    '</div>' +
+    '<div class="thumb-grid">' + thumbs + '</div>' +
   '</div>';
 }
 
 async function exportSummaryPNG() {
   const target = document.getElementById('summaryExport');
   if (!target) return;
+  const date = document.getElementById('summaryDate').value;
   showLoading('กำลังสร้างรูป...');
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 150));
   try {
-    const canvas = await html2canvas(target, {
-      backgroundColor: '#F5F3EE',
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-    const dataUrl = canvas.toDataURL('image/png');
+    const canvas = await html2canvas(target, {backgroundColor:'#F5F3EE', scale:2, useCORS:true, logging:false});
     const a = document.createElement('a');
-    a.href = dataUrl;
-    const date = document.getElementById('summaryDate').value;
-    a.download = 'JobOrder-Summary-' + date + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'สรุปงาน-' + date + '.png';
     a.click();
-    showToast('บันทึกรูปเรียบร้อย');
-  } catch (err) {
-    showToast('สร้างรูปไม่สำเร็จ: ' + err.message, true);
-  } finally {
-    hideLoading();
-  }
+    showToast('บันทึกรูปเรียบร้อย ✅', 'ok');
+  } catch (e) { showToast('สร้างรูปไม่สำเร็จ: ' + e.message, 'error'); }
+  finally { hideLoading(); }
 }
 
 // ============================================================================
 //  INIT
 // ============================================================================
-function updateHeaderDate() {
-  const d = new Date();
-  const th = d.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
-  document.getElementById('headerDate').innerHTML =
-    '<div>' + th + '</div><div>' + (d.getFullYear() + 543) + '</div>';
-}
-
-function init() {
-  updateHeaderDate();
-  document.getElementById('jobDate').value = currentDate;
-  document.getElementById('printDate').value = printDate;
-  document.getElementById('summaryDate').value = currentDate;
-  populateTeamSelect();
-  populatePrintTeamSelect();
-  loadExisting();
-}
-
-init();
+populateTeams();
+document.getElementById('jobDate').value = todayISO();
+document.getElementById('summaryDate').value = todayISO();
+loadExisting();
 </script>
 </body>
 </html>

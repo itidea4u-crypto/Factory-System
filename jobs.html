@@ -225,6 +225,81 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
   letter-spacing: 0.5px;
 }
 
+/* Summary page (overview for owner) */
+.summary-page-header {
+  text-align: center; padding-bottom: 10px; margin-bottom: 12px;
+  border-bottom: 2px solid #1A1A1A;
+}
+.summary-page-title {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 28px; color: #1A1A1A;
+  letter-spacing: 1px; line-height: 1;
+}
+.summary-page-subtitle {
+  font-family: 'Kanit', sans-serif; font-size: 14px;
+  margin-top: 4px; color: #5A5550;
+}
+.summary-page-stats {
+  display: flex; justify-content: center; gap: 24px;
+  margin-top: 8px; font-family: 'Kanit', sans-serif; font-size: 13px;
+}
+.summary-page-stats strong {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 22px; color: #C1440E; display: block;
+  line-height: 1;
+}
+.summary-team-section {
+  margin-bottom: 14px; page-break-inside: avoid;
+}
+.summary-team-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px; background: #1A1A1A; color: #FFF;
+  font-family: 'Kanit', sans-serif;
+}
+.summary-team-name {
+  font-weight: 700; font-size: 16px; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.summary-team-count {
+  font-family: 'Archivo Black', sans-serif; font-size: 14px;
+  background: #C1440E; padding: 2px 8px;
+}
+.summary-team-thumbs {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px;
+  padding: 6px; border: 1px solid #D6D1C7; border-top: none;
+}
+.summary-thumb {
+  position: relative; aspect-ratio: 1;
+  border: 1px solid #E5E0D5; overflow: hidden;
+  background: #FAFAF7;
+}
+.summary-thumb img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.summary-thumb-num {
+  position: absolute; top: 0; left: 0;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 11px; line-height: 1;
+  color: #FFF; background: #1A1A1A;
+  padding: 2px 5px; min-width: 16px; text-align: center;
+}
+.summary-thumb-loc {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  font-family: 'Sarabun', sans-serif; font-size: 9px;
+  color: #FFF; background: rgba(0,0,0,0.7);
+  padding: 2px 4px; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.summary-empty-team {
+  padding: 14px; text-align: center;
+  font-family: 'Sarabun', sans-serif; font-size: 12px;
+  color: #8A8278; font-style: italic;
+  border: 1px solid #D6D1C7; border-top: none;
+}
+@media (max-width: 820px) {
+  .summary-team-thumbs { grid-template-columns: repeat(4, 1fr); }
+}
+
 /* Installation cell — matches reference: title row + notes + image at bottom */
 .print-cell-install {
   border: 1px solid #D6D1C7; padding: 8px 10px;
@@ -296,13 +371,22 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 /* Save status indicator (auto-save) */
 .save-status {
   margin-left: auto; font-family: 'Sarabun', sans-serif;
-  font-size: 12px; font-weight: 500; color: #8A8278;
+  font-size: 12px; font-weight: 600; color: #8A8278;
   display: flex; align-items: center; gap: 5px;
   white-space: nowrap;
+  padding: 3px 8px; border-radius: 12px;
 }
-.save-status.saving { color: #5A5550; }
-.save-status.saved { color: #2D5016; }
-.save-status.error { color: #C1440E; cursor: pointer; text-decoration: underline; }
+.save-status.saving {
+  color: #8B6500; background: #FFF4D6;
+}
+.save-status.saved {
+  color: #2D5016; background: #E8F0DC;
+}
+.save-status.error {
+  color: #FFF; background: #C1440E;
+  cursor: pointer; text-decoration: none;
+}
+.save-status.error:hover { background: #1A1A1A; }
 
 /* Sticky bottom export bar */
 .sticky-export {
@@ -502,7 +586,7 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
       <strong id="stickyCount">0 รูป</strong>
       <span id="stickyPages">0 หน้า A4</span>
     </div>
-    <button class="btn-export-sticky" id="exportBtn" onclick="exportAllPages()">📤 ส่งรูปให้ช่าง</button>
+    <button class="btn-export-sticky" id="exportBtn" onclick="exportAllPages()">📸 บันทึกรูป</button>
   </div>
 </div>
 
@@ -758,7 +842,7 @@ async function handleFiles(files, team) {
 
   hideLoading();
   renderJobItems();
-  scheduleAutoSave(800);
+  scheduleAutoSave(300); // save เร็วหลังอัปรูป — รูปใหญ่ ไม่อยากเสี่ยงหาย
 }
 
 // ============================================================================
@@ -1206,7 +1290,91 @@ function buildPage(pageItems, start, isInstall, perPage, team, date, pageNum, to
   '</div>';
 }
 
-// Export PNG — 1 file per page, ใช้ Web Share API บน mobile
+// ============================================================================
+//  SUMMARY PAGE — แผ่นสรุปงานของวันให้เจ้าของดู
+// ============================================================================
+function buildSummaryPage(workTypeKey, allItems, date, summaryIdx) {
+  const isInstall = workTypeKey === 'installation';
+  const typeLabel = isInstall ? 'ติดตั้ง' : 'ผลิต';
+  const teams = TEAMS[workTypeKey];
+
+  // Group by team
+  const byTeam = {};
+  for (const t of teams) byTeam[t] = [];
+  for (const item of allItems) {
+    if (item.team && byTeam[item.team]) byTeam[item.team].push(item);
+  }
+
+  const totalJobs = allItems.length;
+  const teamsWithWork = teams.filter(t => byTeam[t].length > 0).length;
+
+  let teamHtml = '';
+  let runningNum = 0;
+  for (const team of teams) {
+    const items = byTeam[team];
+    teamHtml += '<div class="summary-team-section">' +
+      '<div class="summary-team-header">' +
+        '<div class="summary-team-name">' + (isInstall ? '🛠️' : '🔨') + ' ' + esc(team) + '</div>' +
+        '<div class="summary-team-count">' + items.length + ' ใบ</div>' +
+      '</div>';
+
+    if (items.length === 0) {
+      teamHtml += '<div class="summary-empty-team">— ไม่มีงาน —</div>';
+    } else {
+      teamHtml += '<div class="summary-team-thumbs">';
+      for (const item of items) {
+        runningNum++;
+        const imgSrc = item.imageData || item.imageUrl || '';
+        const numStr = String(runningNum).padStart(2, '0');
+        const loc = item.location ? '<div class="summary-thumb-loc">' + esc(item.location) + '</div>' : '';
+        teamHtml += '<div class="summary-thumb">' +
+          '<div class="summary-thumb-num">' + numStr + '</div>' +
+          (imgSrc ? '<img src="' + esc(imgSrc) + '" referrerpolicy="no-referrer">' : '') +
+          loc +
+        '</div>';
+      }
+      teamHtml += '</div>';
+    }
+    teamHtml += '</div>';
+  }
+
+  return '<div class="print-page production" id="summaryPage_' + summaryIdx + '"' +
+    ' data-summary="1" data-work-type="' + workTypeKey + '">' +
+    '<div class="summary-page-header">' +
+      '<div class="summary-page-title">SUMMARY · งาน' + typeLabel + '</div>' +
+      '<div class="summary-page-subtitle">วันที่ ' + fmtDateShort(date) + '</div>' +
+      '<div class="summary-page-stats">' +
+        '<div><strong>' + totalJobs + '</strong> ใบงาน</div>' +
+        '<div><strong>' + teamsWithWork + '</strong> ทีมที่มีงาน</div>' +
+      '</div>' +
+    '</div>' +
+    teamHtml +
+  '</div>';
+}
+
+// โหลดงานทุกทีมของ workType ที่กำหนด — ใช้ตอนสร้างหน้าสรุป
+async function loadAllJobsForWorkType(workTypeKey, date) {
+  const teams = TEAMS[workTypeKey];
+  const promises = teams.map(team =>
+    apiCall({action:'job_list', workType: workTypeKey, team, date})
+      .then(res => ({team, jobs: res.jobs||[]}))
+      .catch(() => ({team, jobs: []}))
+  );
+  const results = await Promise.all(promises);
+  const items = [];
+  for (const {team, jobs} of results) {
+    for (const j of jobs) {
+      items.push({
+        id: j.id, imageUrl: j.imageUrl,
+        location: j.location||'', note: j.note||'',
+        team,
+      });
+    }
+  }
+  return items;
+}
+
+// Export PNG — ใบงานต่อทีม + แผ่นสรุปทั้ง 2 ประเภท
 async function exportAllPages() {
   // บันทึกก่อน export ให้แน่ใจ
   await flushSave();
@@ -1217,33 +1385,71 @@ async function exportAllPages() {
   if (wasCollapsed) sec.classList.remove('collapsed');
   await new Promise(r => setTimeout(r, 200));
 
-  const pages = document.querySelectorAll('[id^="printPage_"]');
-  if (!pages.length) {
-    if (wasCollapsed) sec.classList.add('collapsed');
-    showToast('ยังไม่มีรูปที่กำหนดทีม', 'error');
-    return;
-  }
-
   const date = document.getElementById('jobDate').value;
   const typeLabel = workType === 'production' ? 'ผลิต' : 'ติดตั้ง';
 
+  // ─── โหลดงานทั้ง 2 ประเภทเพื่อสร้างหน้าสรุป ───
+  showLoading('กำลังโหลดงานทุกทีม...');
+  let prodItems = [], instItems = [];
+  try {
+    if (workType === 'production') {
+      // งานผลิต = jobItems ปัจจุบัน (มี imageData อยู่แล้ว)
+      prodItems = jobItems.filter(j => j.team).map(j => ({
+        id: j.id, imageData: j.imageData, imageUrl: j.imageUrl,
+        location: j.location, note: j.note, team: j.team,
+      }));
+      instItems = await loadAllJobsForWorkType('installation', date);
+    } else {
+      instItems = jobItems.filter(j => j.team).map(j => ({
+        id: j.id, imageData: j.imageData, imageUrl: j.imageUrl,
+        location: j.location, note: j.note, team: j.team,
+      }));
+      prodItems = await loadAllJobsForWorkType('production', date);
+    }
+  } catch (e) {
+    // ถ้าโหลดอีกประเภทไม่ได้ ก็ทำเฉพาะที่มี (ไม่ block flow หลัก)
+    console.warn('[export] โหลดงานอีกประเภทล้มเหลว:', e);
+  }
+
+  // ─── สร้าง summary pages ใน DOM (ซ่อนแต่ html2canvas จับได้) ───
+  const summaryContainer = document.createElement('div');
+  summaryContainer.id = 'summaryPagesContainer';
+  summaryContainer.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:visible;';
+
+  let summaryHtml = '';
+  if (prodItems.length > 0) summaryHtml += buildSummaryPage('production', prodItems, date, 0);
+  if (instItems.length > 0) summaryHtml += buildSummaryPage('installation', instItems, date, 1);
+  summaryContainer.innerHTML = summaryHtml;
+  document.body.appendChild(summaryContainer);
+  await new Promise(r => setTimeout(r, 200)); // รอ render
+
+  // ─── เก็บ pages ที่ต้อง export — ใบงานต่อทีม + summary pages ───
+  const teamPages = Array.from(document.querySelectorAll('[id^="printPage_"]'));
+  const summaryPages = Array.from(document.querySelectorAll('[id^="summaryPage_"]'));
+  const allPages = [...teamPages, ...summaryPages];
+
+  if (!allPages.length) {
+    summaryContainer.remove();
+    if (wasCollapsed) sec.classList.add('collapsed');
+    hideLoading();
+    showToast('ยังไม่มีงานให้ออกรูป', 'error');
+    return;
+  }
+
   // A4 ที่ 96 DPI: 210mm x 297mm = 794 x 1123 px
-  // ใช้ scale 2 → 1588 x 2246 px (พิมพ์คมชัด)
   const A4_WIDTH_PX = 794;
   const A4_HEIGHT_PX = 1123;
 
-  showLoading('กำลังสร้างรูป (' + pages.length + ' หน้า)...');
+  showLoading('กำลังสร้างรูป (' + allPages.length + ' หน้า)...');
   await new Promise(r => setTimeout(r, 150));
 
   let exportSuccess = false;
   try {
     // ─── ขั้น 1: สร้าง canvas + แปลงเป็น File ทุกหน้าก่อน ───
     const generatedFiles = [];
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i];
-      const team = page.dataset.team || '';
-      const pageNum = page.dataset.pageNum || '1';
-      const totalTeamPages = parseInt(page.dataset.totalTeamPages || '1', 10);
+    for (let i = 0; i < allPages.length; i++) {
+      const page = allPages[i];
+      const isSummary = page.dataset.summary === '1';
 
       const canvas = await html2canvas(page, {
         backgroundColor: '#FFFFFF',
@@ -1256,15 +1462,25 @@ async function exportAllPages() {
         windowHeight: A4_HEIGHT_PX,
       });
 
-      const safeTeam = team.replace(/[\/\\:*?"<>|]/g, '-');
-      const pageSuffix = totalTeamPages > 1 ? '-หน้า' + pageNum : '';
-      const filename = 'ใบงาน' + typeLabel + '-' + fmtDateShort(date) + '-' + safeTeam + pageSuffix + '.png';
+      let filename;
+      if (isSummary) {
+        const summaryType = page.dataset.workType === 'production' ? 'ผลิต' : 'ติดตั้ง';
+        filename = 'สรุปงาน' + summaryType + '-' + fmtDateShort(date) + '.png';
+      } else {
+        const team = page.dataset.team || '';
+        const pageNum = page.dataset.pageNum || '1';
+        const totalTeamPages = parseInt(page.dataset.totalTeamPages || '1', 10);
+        const safeTeam = team.replace(/[\/\\:*?"<>|]/g, '-');
+        const pageSuffix = totalTeamPages > 1 ? '-หน้า' + pageNum : '';
+        filename = 'ใบงาน' + typeLabel + '-' + fmtDateShort(date) + '-' + safeTeam + pageSuffix + '.png';
+      }
 
-      // แปลงเป็น Blob → File
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       generatedFiles.push(new File([blob], filename, { type: 'image/png' }));
     }
 
+    // ลบ summary container ออกจาก DOM (ทำงานเสร็จแล้ว)
+    summaryContainer.remove();
     hideLoading();
 
     // ─── ขั้น 2: ลองแชร์หลายไฟล์พร้อมกัน (Android Chrome รองรับ) ───
@@ -1272,22 +1488,19 @@ async function exportAllPages() {
       try {
         await navigator.share({
           files: generatedFiles,
-          title: 'ใบงาน' + typeLabel + ' ' + fmtDateShort(date),
+          title: 'งานวันที่ ' + fmtDateShort(date),
         });
         exportSuccess = true;
         showToast('✅ ส่งสำเร็จ ' + generatedFiles.length + ' รูป', 'ok');
       } catch (e) {
         if (e.name === 'AbortError') {
-          // ผู้ใช้กดปิด share sheet — ไม่ใช่ error ไม่ต้อง toast
           if (wasCollapsed) sec.classList.add('collapsed');
           return;
         }
-        // ถ้า multi-share พังเพราะเหตุอื่น ลอง share ทีละไฟล์
         await shareFilesSequentially(generatedFiles);
         exportSuccess = true;
       }
     }
-    // ─── ขั้น 3: fallback share ทีละไฟล์ (มือถือเก่า) ───
     else if (navigator.share && navigator.canShare) {
       const aborted = await shareFilesSequentially(generatedFiles);
       if (aborted) {
@@ -1296,7 +1509,6 @@ async function exportAllPages() {
       }
       exportSuccess = true;
     }
-    // ─── ขั้น 4: fallback download (คอม / browser ที่ไม่รองรับ share) ───
     else {
       for (let i = 0; i < generatedFiles.length; i++) {
         const file = generatedFiles[i];
@@ -1312,13 +1524,16 @@ async function exportAllPages() {
     }
   } catch (e) {
     showToast('สร้างรูปไม่สำเร็จ: ' + e.message, 'error');
+    summaryContainer.remove();
   }
   finally {
     hideLoading();
+    // เผื่อกรณี error ยังเหลือ container ค้าง
+    const stale = document.getElementById('summaryPagesContainer');
+    if (stale) stale.remove();
     if (wasCollapsed) sec.classList.add('collapsed');
   }
 
-  // รีเฟรชหน้าเว็บอัตโนมัติหลัง export สำเร็จ (รอให้ผู้ใช้เห็น toast ก่อน)
   if (exportSuccess) {
     setTimeout(() => location.reload(), 3000);
   }
@@ -1348,14 +1563,23 @@ async function shareFilesSequentially(files) {
 //  RESET
 // ============================================================================
 function confirmReset() {
-  if (!confirm('ล้างหน้าจอใช่หรือไม่?\n\n(ข้อมูลที่บันทึกแล้วยังอยู่ในระบบ — เลือกวันที่เดิมเพื่อโหลดกลับมาได้)')) return;
+  if (!confirm('ล้างหน้าจอและกลับไปวันนี้ใช่หรือไม่?\n\n(ข้อมูลที่บันทึกแล้วยังอยู่ในระบบ)')) return;
   clearTimeout(_saveTimer);
   jobItems = [];
   document.getElementById('existingStatus').innerHTML = '';
   setSaveStatus('', '');
+
+  const today = todayISO();
+  const dateInput = document.getElementById('jobDate');
+  const wasToday = dateInput.value === today;
+  dateInput.value = today;
+
   renderJobItems();
   showToast('ล้างหน้าจอเรียบร้อย', 'ok');
-  // ไม่เรียก loadExisting() — ผู้ใช้กดเปลี่ยนวันที่เองถ้าอยากโหลดกลับ
+
+  // ถ้าเดิมไม่ใช่วันนี้ ระบบเปลี่ยนวันให้ → โหลดงานของวันนี้มาแสดง
+  // ถ้าเดิมเป็นวันนี้อยู่แล้ว → ไม่โหลด (ผู้ใช้ตั้งใจล้างหน้าจอ ไม่ใช่อยากเห็นของเดิม)
+  if (!wasToday) loadExisting();
 }
 
 // ============================================================================
@@ -1363,6 +1587,46 @@ function confirmReset() {
 // ============================================================================
 document.getElementById('jobDate').value = todayISO();
 loadExisting();
+
+// ป้องกันงานหายตอนปิด tab/browser
+// ถ้ามีรูปหรือข้อความที่ยังไม่ save → เตือนผู้ใช้ก่อน
+window.addEventListener('beforeunload', (e) => {
+  const hasUnsaved = jobItems.some(j => (j.isNew && j.team) || (j._dirty && !j.isNew));
+  if (hasUnsaved || _saveInFlight) {
+    // บังคับ save ทันที (best effort — บราวเซอร์อาจไม่รอให้เสร็จ)
+    if (!_saveInFlight) doSave();
+    // ขึ้น browser warning ("ออกจากหน้านี้?")
+    e.preventDefault();
+    e.returnValue = 'คุณมีงานที่ยังไม่ได้บันทึก — แน่ใจที่จะออก?';
+    return e.returnValue;
+  }
+});
+
+// ปรับวันที่เป็นวันปัจจุบันอัตโนมัติเมื่อข้ามวัน
+// ใช้กับกรณี: เปิด tab ค้างไว้ข้ามวัน, สลับ tab แล้วกลับมา
+function checkDateAutoUpdate() {
+  const dateInput = document.getElementById('jobDate');
+  const today = todayISO();
+  // เปลี่ยนเฉพาะกรณีที่:
+  // 1. วันที่ในช่องไม่ใช่วันนี้
+  // 2. ผู้ใช้ไม่มีรูปยังไม่บันทึก (กันงานที่กำลังทำอยู่หาย)
+  if (dateInput.value !== today) {
+    const hasUnsaved = jobItems.some(j => j.isNew || j._dirty);
+    if (!hasUnsaved) {
+      dateInput.value = today;
+      onDateChange();
+    }
+  }
+}
+
+// เช็ควันใหม่ตอนผู้ใช้กลับมาที่ tab
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkDateAutoUpdate();
+});
+window.addEventListener('focus', checkDateAutoUpdate);
+
+// เช็คทุก 5 นาที (กรณีเปิดทิ้งไว้นานๆ ข้ามวัน)
+setInterval(checkDateAutoUpdate, 5 * 60 * 1000);
 </script>
 </body>
 </html>

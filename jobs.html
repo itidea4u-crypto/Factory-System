@@ -99,60 +99,6 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 /* Job list */
 .job-list { display: grid; gap: 10px; margin-top: 8px; }
 
-/* Team group sections */
-.team-group { margin-top: 18px; }
-.team-group:first-child { margin-top: 4px; }
-.team-group-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; margin-bottom: 0;
-  background: #FFF; border: 1px solid #E5E0D5;
-  border-left: 4px solid #2D5016;
-  font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 14px;
-  color: #1A1A1A;
-}
-.team-group-header.unassigned {
-  border-left-color: #C1440E;
-  background: #FFE8D6;
-  color: #C1440E;
-}
-.team-group-header .count {
-  margin-left: auto; font-size: 13px; color: #5A5550;
-  font-weight: 500;
-}
-.team-group-header.unassigned .count { color: #C1440E; }
-.team-group-header .icon { font-size: 16px; }
-.assign-all-btn {
-  margin-top: 6px; padding: 8px 12px;
-  background: #FFF; border: 1.5px dashed #C1440E; color: #C1440E;
-  font-family: 'Kanit', sans-serif; font-size: 13px; font-weight: 500;
-  cursor: pointer; border-radius: 4px; width: 100%;
-}
-.assign-all-btn:hover { background: #FFE8D6; }
-
-/* Per-item team selector */
-.team-select-wrap { position: relative; margin-top: 6px; }
-.team-select {
-  appearance: none; -webkit-appearance: none; -moz-appearance: none;
-  width: 100%; padding: 8px 28px 8px 10px;
-  border: 1.5px solid #D6D1C7; background: #FFF;
-  font-family: 'Kanit', sans-serif; font-size: 13px; font-weight: 500;
-  color: #1A1A1A; cursor: pointer; border-radius: 4px;
-  min-height: 38px;
-}
-.team-select.unassigned {
-  border-color: #C1440E; background: #FFE8D6; color: #C1440E;
-  font-weight: 600;
-}
-.team-select:disabled {
-  background: #F5F3EE; color: #5A5550; cursor: not-allowed;
-  border-color: #E5E0D5; opacity: 1;
-}
-.team-select-wrap::after {
-  content: '▾'; position: absolute; right: 10px; top: 50%;
-  transform: translateY(-50%); pointer-events: none;
-  font-size: 11px; color: #5A5550; font-family: 'Sarabun', sans-serif;
-}
-.team-select-wrap.locked::after { content: '🔒'; font-size: 11px; }
 .job-item {
   background: #FFF; border: 1.5px solid #E5E0D5; padding: 12px;
   display: grid; grid-template-columns: auto auto 1fr auto;
@@ -343,18 +289,6 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .save-status.saved { color: #2D5016; }
 .save-status.error { color: #C1440E; cursor: pointer; text-decoration: underline; }
 
-/* Two-button upload row */
-.upload-row {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-}
-@media (max-width: 380px) { .upload-row { grid-template-columns: 1fr; } }
-.upload-btn-camera { background: #2D5016; border: 2px solid #2D5016; color: #FFF; }
-.upload-btn-camera:hover { background: #1A1A1A; border-color: #1A1A1A; }
-.upload-btn-camera .upload-btn-text { color: #FFF; }
-.upload-btn-camera .upload-btn-icon { filter: none; }
-.upload-btn-gallery { background: #FFF; border: 2px solid #1A1A1A; }
-.upload-btn-gallery:hover { background: #F5F3EE; }
-
 /* Sticky bottom export bar */
 .sticky-export {
   position: fixed; bottom: 0; left: 0; right: 0;
@@ -396,6 +330,58 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .preview-section.collapsed .preview-toggle .arrow { transform: rotate(-90deg); }
 .preview-toggle .arrow { transition: transform 0.2s; display: inline-block; }
 #jobItemsContainer:empty { display: none; }
+
+/* Team box (one per team) */
+.team-box {
+  border: 2px solid #D6D1C7; background: #FFF;
+  margin-top: 14px; overflow: hidden;
+}
+.team-box.production { border-color: #2D5016; }
+.team-box.installation { border-color: #C1440E; }
+.team-box.drag-over {
+  background: #FFF8E7; border-style: dashed;
+  border-color: #F0C11E;
+}
+.team-box-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: #FAFAF7;
+  border-bottom: 1px solid #E5E0D5;
+}
+.team-box.production .team-box-header { background: #F0F4EB; }
+.team-box.installation .team-box-header { background: #FBF1EC; }
+.team-box-name {
+  font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 16px;
+  color: #1A1A1A; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.team-box-count {
+  font-family: 'Kanit', sans-serif; font-weight: 700;
+  font-size: 14px; color: #5A5550;
+  background: #FFF; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid #D6D1C7; flex-shrink: 0;
+}
+.team-box-count.has-items { background: #1A1A1A; color: #FFF; border-color: #1A1A1A; }
+.team-box-body { padding: 10px 12px 12px; }
+.team-upload-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 48px;
+  background: #FFF; border: 2px dashed #B5B0A4;
+  font-family: 'Kanit', sans-serif; font-weight: 500; font-size: 15px;
+  color: #1A1A1A; cursor: pointer;
+  transition: all 0.15s;
+}
+.team-upload-btn:hover, .team-upload-btn:active {
+  border-color: #2D5016; background: #F0F4EB; color: #2D5016;
+}
+.team-box.installation .team-upload-btn:hover, .team-box.installation .team-upload-btn:active {
+  border-color: #C1440E; background: #FBF1EC; color: #C1440E;
+}
+.team-job-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.team-empty-hint {
+  text-align: center; padding: 14px 8px;
+  font-family: 'Sarabun', sans-serif; font-size: 13px;
+  color: #8A8278; font-style: italic;
+}
 
 /* Print media */
 @media print {
@@ -441,28 +427,14 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
     </div>
   </div>
 
-  <!-- ② แนบรูป -->
+  <!-- ② แนบรูป (แต่ละทีมมีกล่องของตัวเอง) -->
   <div class="section">
     <div class="section-title">
-      <span class="section-num">2</span>รูปใบงาน
+      <span class="section-num">2</span>รูปใบงานแต่ละทีม
       <span class="save-status" id="saveStatus"></span>
     </div>
 
     <div id="existingStatus"></div>
-
-    <div class="upload-row">
-      <label class="upload-btn upload-btn-camera" for="fileCamera">
-        <div class="upload-btn-icon">📷</div>
-        <div class="upload-btn-text">ถ่ายรูป</div>
-        <input type="file" id="fileCamera" accept="image/*" capture="environment" multiple style="display:none" onchange="handleFiles(event.target.files); this.value='';">
-      </label>
-      <label class="upload-btn upload-btn-gallery" for="fileGallery">
-        <div class="upload-btn-icon">🖼️</div>
-        <div class="upload-btn-text">เลือกจากคลังรูป</div>
-        <input type="file" id="fileGallery" accept="image/*" multiple style="display:none" onchange="handleFiles(event.target.files); this.value='';">
-      </label>
-    </div>
-
     <div id="jobItemsContainer"></div>
   </div>
 
@@ -667,144 +639,124 @@ async function loadExisting() {
 }
 
 // ============================================================================
-//  TEAM ASSIGNMENT
 // ============================================================================
-function assignTeam(key, team) {
-  const item = jobItems.find(j => (j.id||j.tempId) === key);
-  if (!item || !item.isNew) return; // saved items locked
-  item.team = team || null;
-  renderJobItems();
-  if (team) scheduleAutoSave(800);
-}
-
-function assignAllUnassigned(team) {
-  if (!team) return;
-  jobItems.forEach(j => { if (j.isNew && !j.team) j.team = team; });
-  renderJobItems();
-  scheduleAutoSave(500);
-}
-
+//  FILE UPLOAD — รับ team จากปุ่มของแต่ละทีม
 // ============================================================================
-//  FILE UPLOAD
-// ============================================================================
-async function handleFiles(files) {
+async function handleFiles(files, team) {
   if (!files || !files.length) return;
+  if (!team) { showToast('ระบุทีมไม่สำเร็จ', 'error'); return; }
+
+  // ต้องเลือกวันที่ก่อน
+  const date = document.getElementById('jobDate').value;
+  if (!date) { showToast('กรุณาเลือกวันที่ก่อนเพิ่มรูป', 'error'); return; }
+
   showLoading('กำลังประมวลผล ' + files.length + ' รูป...');
   try {
     for (const f of files) {
       if (!f.type.startsWith('image/')) continue;
       const data = await resizeImage(f, 1400, 0.82);
-      jobItems.push({ tempId: uid(), imageData: data, location: '', note: '', team: null, isNew: true });
+      jobItems.push({ tempId: uid(), imageData: data, location: '', note: '', team, isNew: true });
     }
     renderJobItems();
   } catch (e) { showToast('ประมวลผลรูปไม่สำเร็จ', 'error'); }
   finally { hideLoading(); }
-  // ไม่ schedule autosave ตรงนี้ — รอจนกว่ารูปจะถูก assign team
+  scheduleAutoSave(800);
 }
 
 // ============================================================================
-//  RENDER JOB LIST
+//  RENDER JOB LIST — แสดงทุกทีมตลอด แต่ละทีมมีปุ่มอัปของตัวเอง
 // ============================================================================
 function renderJobItems() {
   const container = document.getElementById('jobItemsContainer');
   const previewSection = document.getElementById('previewSection');
 
-  if (jobItems.length === 0) {
-    container.innerHTML = '';
-    previewSection.classList.remove('show');
-    document.getElementById('printPagesContainer').innerHTML = '';
-    updateStickyBar();
-    return;
-  }
-
   const isInstall = workType === 'installation';
   const teams = TEAMS[workType];
+  const typeCls = isInstall ? 'installation' : 'production';
 
-  // Group: unassigned first, then each team in TEAMS order
-  const groups = [];
-  const unassigned = jobItems.filter(j => !j.team);
-  if (unassigned.length > 0) {
-    groups.push({ key: '__unassigned', label: 'ยังไม่กำหนดทีม', items: unassigned, isUnassigned: true });
-  }
-  for (const t of teams) {
-    const items = jobItems.filter(j => j.team === t);
-    if (items.length > 0) groups.push({ key: t, label: t, items, isUnassigned: false });
-  }
-
-  // Build team option HTML once (re-used per item)
-  const buildTeamOptions = (selected) => {
-    let opts = '<option value=""' + (!selected ? ' selected' : '') + '>⚠️ ยังไม่กำหนด</option>';
-    for (const t of teams) {
-      opts += '<option value="' + esc(t) + '"' + (selected === t ? ' selected' : '') + '>👷 ' + esc(t) + '</option>';
+  // Group items by team
+  const itemsByTeam = {};
+  for (const t of teams) itemsByTeam[t] = [];
+  for (const item of jobItems) {
+    if (item.team && itemsByTeam[item.team]) {
+      itemsByTeam[item.team].push(item);
     }
-    return opts;
-  };
+  }
 
   let html = '';
-  for (const g of groups) {
-    const headerCls = g.isUnassigned ? 'team-group-header unassigned' : 'team-group-header';
-    const icon = g.isUnassigned ? '⚠️' : '👷';
-    html += '<div class="team-group">' +
-      '<div class="' + headerCls + '">' +
-        '<span class="icon">' + icon + '</span>' +
-        '<span>' + esc(g.label) + '</span>' +
-        '<span class="count">' + g.items.length + ' รูป</span>' +
-      '</div>';
+  for (const team of teams) {
+    const items = itemsByTeam[team];
+    const count = items.length;
+    const safeTeam = esc(team);
+    const teamId = 'team-' + team.replace(/[^a-zA-Z0-9ก-๙]/g, '_');
 
-    // Quick-assign buttons for unassigned group
-    if (g.isUnassigned) {
-      html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">';
-      for (const t of teams) {
-        html += '<button class="assign-all-btn" style="flex:1;min-width:140px;" onclick="assignAllUnassigned(\'' + esc(t).replace(/'/g,"\\'") + '\')">→ ส่งทุกใบให้ ' + esc(t) + '</button>';
-      }
+    html += '<div class="team-box ' + typeCls + '" data-team="' + safeTeam + '">' +
+      '<div class="team-box-header">' +
+        '<div class="team-box-name">' + (isInstall ? '🛠️' : '🔨') + ' ' + safeTeam + '</div>' +
+        '<div class="team-box-count' + (count > 0 ? ' has-items' : '') + '">' + count + ' รูป</div>' +
+      '</div>' +
+      '<div class="team-box-body">' +
+        '<button class="team-upload-btn" onclick="document.getElementById(\'' + teamId + '\').click()">' +
+          '🖼️ เลือกรูปจากคลังให้ทีมนี้' +
+        '</button>' +
+        '<input type="file" id="' + teamId + '" accept="image/*" multiple style="display:none" ' +
+          'onchange="handleFiles(event.target.files, \'' + team.replace(/'/g,"\\'") + '\'); this.value=\'\';">';
+
+    if (count === 0) {
+      html += '<div class="team-empty-hint">ยังไม่มีรูปสำหรับทีมนี้</div>';
+    } else {
+      html += '<div class="team-job-list job-list" data-team="' + safeTeam + '">';
+      items.forEach((item, idx) => {
+        const key = item.id || item.tempId;
+        const imgSrc = item.imageData || item.imageUrl || '';
+        const badgeCls = item.isNew ? 'badge-new' : 'badge-saved';
+        const badgeText = item.isNew ? 'ใหม่' : 'บันทึกแล้ว';
+
+        html += '<div class="job-item" data-key="' + key + '">' +
+          '<div class="drag-handle">⋮⋮</div>' +
+          '<img class="job-thumb" src="' + esc(imgSrc) + '" referrerpolicy="no-referrer" onerror="this.style.background=\'#F5F3EE\'">' +
+          '<div class="job-fields">' +
+            '<div class="job-num">ใบที่ ' + (idx+1) + ' <span class="badge ' + badgeCls + '">' + badgeText + '</span></div>' +
+            (isInstall
+              ? '<input class="job-input" placeholder="📍 สถานที่ / ชื่อร้าน" value="' + esc(item.location) + '" oninput="updateField(\'' + key + '\',\'location\',this.value)">' +
+                '<textarea class="job-input job-textarea" rows="2" placeholder="📝 รายละเอียด เช่น เบอร์โทร, ที่อยู่, หมายเหตุ" oninput="updateField(\'' + key + '\',\'note\',this.value)">' + esc(item.note) + '</textarea>'
+              : '') +
+          '</div>' +
+          '<button class="job-remove" onclick="removeItem(\'' + key + '\')">×</button>' +
+        '</div>';
+      });
       html += '</div>';
     }
 
-    html += '<div class="job-list" data-team="' + esc(g.key) + '">';
-    g.items.forEach((item, idx) => {
-      const key = item.id || item.tempId;
-      const imgSrc = item.imageData || item.imageUrl || '';
-      const badgeCls = item.isNew ? 'badge-new' : 'badge-saved';
-      const badgeText = item.isNew ? 'ใหม่' : 'บันทึกแล้ว';
-
-      // Team selector: editable for new items, locked for saved
-      const teamSelector = item.isNew
-        ? '<div class="team-select-wrap">' +
-            '<select class="team-select' + (!item.team ? ' unassigned' : '') + '" onchange="assignTeam(\'' + key + '\', this.value)">' +
-              buildTeamOptions(item.team) +
-            '</select></div>'
-        : '<div class="team-select-wrap locked">' +
-            '<select class="team-select" disabled><option>👷 ' + esc(item.team || '') + '</option></select>' +
-          '</div>';
-
-      html += '<div class="job-item" data-key="' + key + '">' +
-        '<div class="drag-handle">⋮⋮</div>' +
-        '<img class="job-thumb" src="' + esc(imgSrc) + '" referrerpolicy="no-referrer" onerror="this.style.background=\'#F5F3EE\'">' +
-        '<div class="job-fields">' +
-          '<div class="job-num">ใบที่ ' + (idx+1) + ' <span class="badge ' + badgeCls + '">' + badgeText + '</span></div>' +
-          teamSelector +
-          (isInstall
-            ? '<input class="job-input" placeholder="📍 สถานที่ / ชื่อร้าน" value="' + esc(item.location) + '" oninput="updateField(\'' + key + '\',\'location\',this.value)">' +
-              '<textarea class="job-input job-textarea" rows="2" placeholder="📝 รายละเอียด เช่น เบอร์โทร, ที่อยู่, หมายเหตุ" oninput="updateField(\'' + key + '\',\'note\',this.value)">' + esc(item.note) + '</textarea>'
-            : '') +
-        '</div>' +
-        '<button class="job-remove" onclick="removeItem(\'' + key + '\')">×</button>' +
-      '</div>';
-    });
     html += '</div></div>';
   }
   container.innerHTML = html;
 
-  // Sortable per group — group name unique per team blocks cross-team drag (use tap to move)
+  // Sortable — shared group across all teams = ลากข้ามทีมได้
   if (window._sortables) window._sortables.forEach(s => { try { s.destroy(); } catch(e){} });
   window._sortables = [];
-  document.querySelectorAll('.job-list').forEach(list => {
-    const teamKey = list.dataset.team;
+  document.querySelectorAll('.team-job-list').forEach(list => {
     const sortable = Sortable.create(list, {
       handle: '.drag-handle', animation: 150,
-      group: 'team-' + teamKey, // unique → no cross-team drag
+      group: 'all-teams', // shared → ลากข้ามทีมได้
+      onAdd: (evt) => {
+        // ลากข้ามทีมเข้ามา → อัปเดต item.team
+        const key = evt.item.dataset.key;
+        const newTeam = evt.to.dataset.team;
+        const item = jobItems.find(j => (j.id||j.tempId) === key);
+        if (item) {
+          if (!item.isNew) {
+            // รูปที่บันทึกแล้ว ห้ามย้าย → คืนกลับ
+            showToast('รูปที่บันทึกแล้ว ย้ายทีมไม่ได้ ต้องลบแล้วเพิ่มใหม่', 'error');
+            renderJobItems(); // re-render to undo visual move
+            return;
+          }
+          item.team = newTeam;
+          item._dirty = true;
+        }
+      },
       onEnd: () => {
-        reorderJobItemsByGroup(teamKey, list);
+        rebuildJobItemsFromDOM();
         renderJobItems();
         scheduleAutoSave(500);
       },
@@ -817,27 +769,21 @@ function renderJobItems() {
   updateStickyBar();
 }
 
-// Rebuild jobItems array preserving the new order within one team's group
-function reorderJobItemsByGroup(teamKey, listEl) {
-  const newOrder = Array.from(listEl.children).map(el => el.dataset.key);
-  const teamItemsInOrder = newOrder
-    .map(k => jobItems.find(j => (j.id||j.tempId) === k))
-    .filter(Boolean);
-
-  const isInThisTeam = (j) => (teamKey === '__unassigned' ? !j.team : j.team === teamKey);
-  const otherItems = jobItems.filter(j => !isInThisTeam(j));
-
-  // Rebuild: unassigned → team1 → team2 → ...
-  const teams = TEAMS[workType];
-  jobItems = [];
-  // Unassigned
-  if (teamKey === '__unassigned') jobItems.push(...teamItemsInOrder);
-  else jobItems.push(...otherItems.filter(j => !j.team));
-  // Each team
-  for (const t of teams) {
-    if (teamKey === t) jobItems.push(...teamItemsInOrder);
-    else jobItems.push(...otherItems.filter(j => j.team === t));
-  }
+// Rebuild jobItems from current DOM order across all team lists
+function rebuildJobItemsFromDOM() {
+  const newOrder = [];
+  document.querySelectorAll('.team-job-list').forEach(list => {
+    const team = list.dataset.team;
+    Array.from(list.children).forEach(el => {
+      const key = el.dataset.key;
+      const item = jobItems.find(j => (j.id||j.tempId) === key);
+      if (item) {
+        item.team = team; // ensure team matches container
+        newOrder.push(item);
+      }
+    });
+  });
+  jobItems = newOrder;
 }
 
 function updateField(key, field, val) {
@@ -990,12 +936,11 @@ function updateStickyBar() {
 
   const isInstall = workType === 'installation';
   const perPage = isInstall ? 6 : 4;
-  const assigned = jobItems.filter(j => j.team);
-  const unassignedCount = count - assigned.length;
 
   // count pages per team
   const byTeam = {};
-  for (const item of assigned) {
+  for (const item of jobItems) {
+    if (!item.team) continue;
     byTeam[item.team] = (byTeam[item.team]||0) + 1;
   }
   const teamCount = Object.keys(byTeam).length;
@@ -1006,19 +951,10 @@ function updateStickyBar() {
   const stickyPages = document.getElementById('stickyPages');
   const exportBtn = document.getElementById('exportBtn');
 
-  if (unassignedCount > 0) {
-    stickyCount.textContent = '⚠️ ยังไม่ระบุทีม ' + unassignedCount + ' รูป';
-    stickyCount.style.color = '#C1440E';
-    stickyPages.textContent = assigned.length > 0
-      ? 'พร้อมออก ' + assigned.length + ' รูป (' + teamCount + ' ทีม → ' + pages + ' หน้า)'
-      : 'กรุณากำหนดทีมก่อน';
-    exportBtn.disabled = (assigned.length === 0);
-  } else {
-    stickyCount.textContent = count + ' รูป · ' + teamCount + ' ทีม';
-    stickyCount.style.color = '';
-    stickyPages.textContent = pages + ' หน้า A4';
-    exportBtn.disabled = false;
-  }
+  stickyCount.textContent = count + ' รูป · ' + teamCount + ' ทีม';
+  stickyCount.style.color = '';
+  stickyPages.textContent = pages + ' หน้า A4';
+  exportBtn.disabled = false;
 }
 
 // ============================================================================

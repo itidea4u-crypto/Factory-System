@@ -422,6 +422,42 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
   .print-grid.cols-2, .print-grid.cols-2-3 { height: calc(297mm - 44mm); }
   .print-cell-production, .print-cell-install { border: 1px solid #999; }
 }
+
+/* Debug panel */
+.debug-panel {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #1A1A1A; color: #00FF66;
+  font-family: 'Courier New', monospace; font-size: 12px;
+  padding: 10px 12px; max-height: 50vh; overflow-y: auto;
+  z-index: 9999; border-top: 3px solid #00FF66;
+  display: none;
+}
+.debug-panel.show { display: block; }
+.debug-panel-header {
+  position: sticky; top: 0; background: #1A1A1A;
+  padding: 4px 0 6px; display: flex; justify-content: space-between;
+  align-items: center; gap: 10px; border-bottom: 1px solid #333;
+  margin-bottom: 6px;
+}
+.debug-panel-title { color: #FFF; font-weight: 700; }
+.debug-panel-actions { display: flex; gap: 6px; }
+.debug-panel-btn {
+  background: transparent; border: 1px solid #00FF66; color: #00FF66;
+  font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer;
+}
+.debug-panel-btn:hover { background: #00FF66; color: #1A1A1A; }
+.debug-line { white-space: pre-wrap; word-break: break-all; line-height: 1.4; }
+.debug-line.error { color: #FF6666; }
+.debug-line.warn { color: #FFCC00; }
+.debug-line.info { color: #00CCFF; }
+.debug-toggle-btn {
+  position: fixed; bottom: 10px; right: 10px;
+  background: #1A1A1A; color: #00FF66;
+  border: 2px solid #00FF66; border-radius: 50%;
+  width: 44px; height: 44px; cursor: pointer;
+  font-size: 18px; z-index: 9998;
+  display: flex; align-items: center; justify-content: center;
+}
 </style>
 </head>
 <body>
@@ -431,7 +467,7 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
     <a href="index.html" class="home-btn" title="กลับหน้าหลัก">🏠</a>
     <div>
       <div class="app-title">ใบงานช่าง</div>
-      <div class="app-subtitle">Job Order Management</div>
+      <div class="app-subtitle">Job Order Management · v2.0-debug</div>
     </div>
   </div>
   <button class="btn-reset" onclick="confirmReset()">🗑️ เริ่มงานใหม่</button>
@@ -480,6 +516,22 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 
 </div>
 
+<!-- Debug toggle button (always visible) -->
+<button class="debug-toggle-btn" onclick="toggleDebugPanel()" title="แสดง/ซ่อน Debug Log">🐛</button>
+
+<!-- Debug panel -->
+<div class="debug-panel" id="debugPanel">
+  <div class="debug-panel-header">
+    <div class="debug-panel-title">🐛 DEBUG LOG (v2.0)</div>
+    <div class="debug-panel-actions">
+      <button class="debug-panel-btn" onclick="copyDebugLog()">📋 คัดลอก</button>
+      <button class="debug-panel-btn" onclick="clearDebugLog()">🗑️ ล้าง</button>
+      <button class="debug-panel-btn" onclick="toggleDebugPanel()">✕ ปิด</button>
+    </div>
+  </div>
+  <div id="debugLogContent"></div>
+</div>
+
 <!-- Sticky bottom export bar -->
 <div class="sticky-export" id="stickyExport">
   <div class="sticky-export-inner">
@@ -517,6 +569,69 @@ let jobItems = [];
 let _saveTimer = null;
 let _saveInFlight = false;
 let _savePendingAfter = false;
+
+// ============================================================================
+//  DEBUG PANEL — แสดง log ในหน้าเลย ไม่ต้องเปิด F12
+// ============================================================================
+const _debugLogs = [];
+function dbg(level, ...args) {
+  const time = new Date().toLocaleTimeString('th-TH', {hour12:false}) + '.' + String(Date.now()%1000).padStart(3,'0');
+  const msg = args.map(a => {
+    if (typeof a === 'string') return a;
+    try { return JSON.stringify(a); } catch(e) { return String(a); }
+  }).join(' ');
+  const line = '[' + time + '] ' + msg;
+  _debugLogs.push({level, line});
+  // แสดงในหน้า
+  const content = document.getElementById('debugLogContent');
+  if (content) {
+    const div = document.createElement('div');
+    div.className = 'debug-line ' + level;
+    div.textContent = line;
+    content.appendChild(div);
+    content.parentElement.scrollTop = content.parentElement.scrollHeight;
+  }
+  // log ใน console ด้วย
+  if (level === 'error') console.error(line);
+  else if (level === 'warn') console.warn(line);
+  else console.log(line);
+}
+function toggleDebugPanel() {
+  const p = document.getElementById('debugPanel');
+  p.classList.toggle('show');
+}
+function clearDebugLog() {
+  _debugLogs.length = 0;
+  const content = document.getElementById('debugLogContent');
+  if (content) content.innerHTML = '';
+}
+function copyDebugLog() {
+  const text = _debugLogs.map(l => l.line).join('\n');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(
+      () => alert('คัดลอก log แล้ว ส่งให้ผู้พัฒนาได้เลย'),
+      () => fallbackCopy(text)
+    );
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); alert('คัดลอกแล้ว'); }
+  catch(e) { alert('คัดลอกไม่ได้ - กรุณาคัดลอกด้วยมือ'); }
+  document.body.removeChild(ta);
+}
+
+// log version onload
+window.addEventListener('DOMContentLoaded', () => {
+  dbg('info', '════ ระบบเริ่มทำงาน v2.0-debug ════');
+  dbg('info', 'User Agent:', navigator.userAgent);
+  dbg('info', 'Screen:', screen.width + 'x' + screen.height);
+});
 
 // ============================================================================
 //  UTILS
@@ -589,15 +704,26 @@ function resizeImage(file, maxDim, q) {
 //  API
 // ============================================================================
 async function apiCall(body) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: {'Content-Type': 'text/plain;charset=utf-8'},
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const json = await res.json();
-  if (json.error) throw new Error(json.error);
-  return json;
+  dbg('info', '[apiCall] →', body.action || 'unknown');
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify(body),
+    });
+    dbg('info', '[apiCall] ← status:', res.status, res.ok ? 'OK' : 'FAIL');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (json.error) {
+      dbg('error', '[apiCall] server error:', json.error);
+      throw new Error(json.error);
+    }
+    return json;
+  } catch (e) {
+    dbg('error', '[apiCall] ❌ FETCH FAIL:', e.name, '|', e.message);
+    dbg('error', '[apiCall] URL:', API_URL.slice(0, 80) + '...');
+    throw e;
+  }
 }
 
 // ============================================================================
@@ -668,8 +794,11 @@ async function loadExisting() {
     }
     renderJobItems();
   } catch (err) {
+    dbg('error', '[loadExisting] ❌ ล้มเหลว:', err.message);
     status.innerHTML = '<div class="status-box warn">⚠️ ' + esc(err.message) +
       ' <button onclick="loadExisting()" style="margin-left:8px;padding:4px 10px;cursor:pointer;font-size:12px;">🔄 ลองใหม่</button></div>';
+    // *** สำคัญ: render กล่องทีมเสมอ แม้โหลดของเก่าไม่ได้ จะได้อัปรูปใหม่ได้ ***
+    renderJobItems();
   }
 }
 
@@ -678,70 +807,71 @@ async function loadExisting() {
 //  FILE UPLOAD — รับ team จากปุ่มของแต่ละทีม
 // ============================================================================
 async function handleFiles(files, team) {
-  console.log('═══════════════════════════════════════');
-  console.log('[handleFiles] เริ่ม - รับมา', files?.length || 0, 'ไฟล์ ทีม:', team);
+  // เปิด debug panel อัตโนมัติทุกครั้งที่อัปรูป
+  document.getElementById('debugPanel').classList.add('show');
+
+  dbg('info', '═══════════════════════════════════════');
+  dbg('info', '[handleFiles] เริ่ม - รับมา', files?.length || 0, 'ไฟล์ ทีม:', team);
   if (files && files.length) {
-    console.log('[handleFiles] รายชื่อไฟล์:');
+    dbg('info', '[handleFiles] รายชื่อไฟล์:');
     Array.from(files).forEach((f, i) => {
-      console.log('  ' + (i+1) + '.', f.name, '|', f.type, '|', (f.size/1024).toFixed(1)+'KB');
+      dbg('info', '  ' + (i+1) + '.', f.name, '|', f.type, '|', (f.size/1024).toFixed(1)+'KB');
     });
   }
 
   if (!files || !files.length) {
-    console.warn('[handleFiles] ไม่มีไฟล์ - หยุด');
+    dbg('warn', '[handleFiles] ไม่มีไฟล์ - หยุด');
     return;
   }
   if (!team) {
-    console.error('[handleFiles] ไม่มี team - หยุด');
+    dbg('error', '[handleFiles] ไม่มี team - หยุด');
     showToast('ระบุทีมไม่สำเร็จ', 'error');
     return;
   }
 
   const date = document.getElementById('jobDate').value;
   if (!date) {
-    console.error('[handleFiles] ไม่มีวันที่ - หยุด');
+    dbg('error', '[handleFiles] ไม่มีวันที่ - หยุด');
     showToast('กรุณาเลือกวันที่ก่อนเพิ่มรูป', 'error');
     return;
   }
 
-  console.log('[handleFiles] jobItems ก่อนเริ่ม:', jobItems.length, 'รายการ');
+  dbg('info', '[handleFiles] jobItems ก่อนเริ่ม:', jobItems.length, 'รายการ');
   showLoading('กำลังประมวลผล ' + files.length + ' รูป...');
 
   let processed = 0, skipped = 0, failed = 0;
-  // *** สำคัญ: process แต่ละไฟล์แยก try/catch ไม่ให้รูปนึงพังทำให้รูปอื่นพัง ***
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
     try {
-      console.log('[handleFiles] รูปที่', (i+1), 'กำลังประมวลผล:', f.name);
+      dbg('info', '[handleFiles] รูปที่', (i+1), 'กำลังประมวลผล:', f.name);
       if (!f.type.startsWith('image/')) {
-        console.warn('[handleFiles] รูปที่', (i+1), 'ไม่ใช่รูปภาพ - ข้าม:', f.type);
+        dbg('warn', '[handleFiles] รูปที่', (i+1), 'ไม่ใช่รูปภาพ - ข้าม:', f.type);
         skipped++;
         continue;
       }
       const data = await resizeImage(f, 1400, 0.82);
-      console.log('[handleFiles] รูปที่', (i+1), 'resize เสร็จ - ขนาด data:', data.length, 'chars');
+      dbg('info', '[handleFiles] รูปที่', (i+1), 'resize เสร็จ - ขนาด:', data.length, 'chars');
       const newItem = { tempId: uid(), imageData: data, location: '', note: '', team, isNew: true };
       jobItems.push(newItem);
-      console.log('[handleFiles] รูปที่', (i+1), 'push แล้ว - tempId:', newItem.tempId, '| jobItems ตอนนี้:', jobItems.length);
+      dbg('info', '[handleFiles] รูปที่', (i+1), 'push แล้ว | jobItems:', jobItems.length);
       processed++;
     } catch (e) {
-      console.error('[handleFiles] รูปที่', (i+1), 'พัง:', e.message, e);
+      dbg('error', '[handleFiles] ❌ รูปที่', (i+1), 'พัง:', e.message);
       failed++;
     }
   }
 
-  console.log('[handleFiles] สรุป: ประมวลสำเร็จ', processed, '| ข้าม', skipped, '| ล้มเหลว', failed);
-  console.log('[handleFiles] jobItems หลังเสร็จ:', jobItems.length, 'รายการ');
-  console.log('[handleFiles] รายการใน jobItems:', jobItems.map(j => ({key: j.id||j.tempId, team: j.team, isNew: j.isNew})));
+  dbg('info', '[handleFiles] สรุป: สำเร็จ', processed, '| ข้าม', skipped, '| ล้มเหลว', failed);
+  dbg('info', '[handleFiles] jobItems หลังเสร็จ:', jobItems.length, 'รายการ');
 
   if (failed > 0) {
     showToast('ประมวลผลรูปบางรูปไม่สำเร็จ (' + failed + '/' + files.length + ')', 'error');
   }
 
   hideLoading();
-  console.log('[handleFiles] เรียก renderJobItems...');
+  dbg('info', '[handleFiles] เรียก renderJobItems...');
   renderJobItems();
-  console.log('═══════════════════════════════════════');
+  dbg('info', '═══════════════════════════════════════');
   scheduleAutoSave(800);
 }
 

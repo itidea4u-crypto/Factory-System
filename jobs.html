@@ -533,7 +533,7 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
       <div class="app-subtitle">Job Order Management</div>
     </div>
   </div>
-  <button class="btn-reset" onclick="confirmReset()">🗑️ เริ่มงานใหม่</button>
+  <button class="btn-reset" onclick="confirmReset()">🗑️ ลบงานวันนี้</button>
 </div>
 
 <div class="main">
@@ -1562,24 +1562,56 @@ async function shareFilesSequentially(files) {
 // ============================================================================
 //  RESET
 // ============================================================================
-function confirmReset() {
-  if (!confirm('ล้างหน้าจอและกลับไปวันนี้ใช่หรือไม่?\n\n(ข้อมูลที่บันทึกแล้วยังอยู่ในระบบ)')) return;
+async function confirmReset() {
+  const date = document.getElementById('jobDate').value;
+  if (!date) { showToast('ไม่พบวันที่', 'error'); return; }
+
+  // ถ้าไม่มีงานในวันนี้ → แค่ล้างหน้าจอ ไม่ต้องลบอะไร
+  if (jobItems.length === 0) {
+    document.getElementById('existingStatus').innerHTML = '';
+    setSaveStatus('', '');
+    showToast('ไม่มีงานให้ลบ', 'ok');
+    return;
+  }
+
+  const dateLabel = fmtDateShort(date);
+  const typeLabel = workType === 'production' ? 'ผลิต' : 'ติดตั้ง';
+  const count = jobItems.length;
+
+  // Confirm ชั้น 1
+  if (!confirm(
+    '⚠️ ลบงาน' + typeLabel + ' วันที่ ' + dateLabel + ' ทั้งหมด ' + count + ' ใบ?\n\n' +
+    '• งานในชีตจะถูกลบ\n' +
+    '• รูปใน Google Drive จะถูกลบด้วย\n' +
+    '• การลบนี้ไม่สามารถย้อนกลับได้'
+  )) return;
+
+  // Confirm ชั้น 2 (กันกดผิด)
+  if (!confirm('ยืนยันอีกครั้ง — ลบงาน ' + count + ' ใบจริงๆ ใช่หรือไม่?')) return;
+
   clearTimeout(_saveTimer);
-  jobItems = [];
-  document.getElementById('existingStatus').innerHTML = '';
-  setSaveStatus('', '');
+  showLoading('กำลังลบงาน ' + count + ' ใบ...');
 
-  const today = todayISO();
-  const dateInput = document.getElementById('jobDate');
-  const wasToday = dateInput.value === today;
-  dateInput.value = today;
+  try {
+    const result = await apiCall({
+      action: 'job_clear_day',
+      workType,
+      date,
+    });
 
-  renderJobItems();
-  showToast('ล้างหน้าจอเรียบร้อย', 'ok');
+    jobItems = [];
+    document.getElementById('existingStatus').innerHTML = '';
+    setSaveStatus('', '');
+    renderJobItems();
 
-  // ถ้าเดิมไม่ใช่วันนี้ ระบบเปลี่ยนวันให้ → โหลดงานของวันนี้มาแสดง
-  // ถ้าเดิมเป็นวันนี้อยู่แล้ว → ไม่โหลด (ผู้ใช้ตั้งใจล้างหน้าจอ ไม่ใช่อยากเห็นของเดิม)
-  if (!wasToday) loadExisting();
+    const msg = '✅ ลบงาน ' + (result.deleted || count) + ' ใบ' +
+      (result.driveDeleted ? ' (รูปใน Drive ' + result.driveDeleted + ' ไฟล์)' : '');
+    showToast(msg, 'ok');
+  } catch (e) {
+    showToast('ลบไม่สำเร็จ: ' + e.message, 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 // ============================================================================

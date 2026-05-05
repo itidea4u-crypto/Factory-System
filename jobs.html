@@ -274,10 +274,12 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 
 /* Toast */
 .toast {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
   background: #1A1A1A; color: #FFF; padding: 12px 20px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.15); z-index: 100;
-  font-weight: 500; display: none; border-radius: 4px; white-space: nowrap;
+  font-weight: 500; display: none; border-radius: 4px;
+  max-width: calc(100vw - 32px); text-align: center;
+  font-size: 14px; line-height: 1.4;
 }
 .toast.show { display: block; }
 .toast.ok { background: #2D5016; }
@@ -500,7 +502,7 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
       <strong id="stickyCount">0 รูป</strong>
       <span id="stickyPages">0 หน้า A4</span>
     </div>
-    <button class="btn-export-sticky" id="exportBtn" onclick="exportAllPages()">📸 ออกรูปส่งให้ช่าง</button>
+    <button class="btn-export-sticky" id="exportBtn" onclick="exportAllPages()">📤 ส่งรูปให้ช่าง</button>
   </div>
 </div>
 
@@ -1235,6 +1237,8 @@ async function exportAllPages() {
 
   let exportSuccess = false;
   try {
+    // ─── ขั้น 1: สร้าง canvas + แปลงเป็น File ทุกหน้าก่อน ───
+    const generatedFiles = [];
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
       const team = page.dataset.team || '';
@@ -1252,70 +1256,106 @@ async function exportAllPages() {
         windowHeight: A4_HEIGHT_PX,
       });
 
-      // sanitize team name สำหรับชื่อไฟล์ ('/' ใช้ไม่ได้)
       const safeTeam = team.replace(/[\/\\:*?"<>|]/g, '-');
       const pageSuffix = totalTeamPages > 1 ? '-หน้า' + pageNum : '';
       const filename = 'ใบงาน' + typeLabel + '-' + fmtDateShort(date) + '-' + safeTeam + pageSuffix + '.png';
 
-      // ลอง Web Share API ก่อน
-      if (navigator.share && navigator.canShare) {
-        try {
-          await new Promise((resolve, reject) => {
-            canvas.toBlob(async (blob) => {
-              try {
-                const file = new File([blob], filename, { type: 'image/png' });
-                if (navigator.canShare({ files: [file] })) {
-                  await navigator.share({ files: [file], title: filename });
-                  resolve();
-                } else {
-                  reject(new Error('canShare false'));
-                }
-              } catch (e) { reject(e); }
-            }, 'image/png');
-          });
-          if (i < pages.length - 1) await new Promise(r => setTimeout(r, 400));
-          continue;
-        } catch (shareErr) {
-          if (shareErr.name === 'AbortError') { hideLoading(); if (wasCollapsed) sec.classList.add('collapsed'); return; }
-        }
-      }
-
-      // Fallback: download
-      const dataUrl = canvas.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = filename;
-      a.click();
-      if (i < pages.length - 1) await new Promise(r => setTimeout(r, 300));
+      // แปลงเป็น Blob → File
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      generatedFiles.push(new File([blob], filename, { type: 'image/png' }));
     }
 
-    exportSuccess = true;
-    showToast('บันทึก ' + pages.length + ' รูปเรียบร้อย ✅ — กำลังรีเฟรชหน้า...', 'ok');
-  } catch (e) { showToast('สร้างรูปไม่สำเร็จ: ' + e.message, 'error'); }
+    hideLoading();
+
+    // ─── ขั้น 2: ลองแชร์หลายไฟล์พร้อมกัน (Android Chrome รองรับ) ───
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: generatedFiles })) {
+      try {
+        await navigator.share({
+          files: generatedFiles,
+          title: 'ใบงาน' + typeLabel + ' ' + fmtDateShort(date),
+        });
+        exportSuccess = true;
+        showToast('✅ ส่งสำเร็จ ' + generatedFiles.length + ' รูป', 'ok');
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          // ผู้ใช้กดปิด share sheet — ไม่ใช่ error ไม่ต้อง toast
+          if (wasCollapsed) sec.classList.add('collapsed');
+          return;
+        }
+        // ถ้า multi-share พังเพราะเหตุอื่น ลอง share ทีละไฟล์
+        await shareFilesSequentially(generatedFiles);
+        exportSuccess = true;
+      }
+    }
+    // ─── ขั้น 3: fallback share ทีละไฟล์ (มือถือเก่า) ───
+    else if (navigator.share && navigator.canShare) {
+      const aborted = await shareFilesSequentially(generatedFiles);
+      if (aborted) {
+        if (wasCollapsed) sec.classList.add('collapsed');
+        return;
+      }
+      exportSuccess = true;
+    }
+    // ─── ขั้น 4: fallback download (คอม / browser ที่ไม่รองรับ share) ───
+    else {
+      for (let i = 0; i < generatedFiles.length; i++) {
+        const file = generatedFiles[i];
+        const url = URL.createObjectURL(file);
+        const a = document.createElement('a');
+        a.href = url; a.download = file.name;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        if (i < generatedFiles.length - 1) await new Promise(r => setTimeout(r, 600));
+      }
+      exportSuccess = true;
+      showToast('✅ บันทึก ' + generatedFiles.length + ' รูปลงเครื่อง — ดูใน Downloads', 'ok');
+    }
+  } catch (e) {
+    showToast('สร้างรูปไม่สำเร็จ: ' + e.message, 'error');
+  }
   finally {
     hideLoading();
     if (wasCollapsed) sec.classList.add('collapsed');
   }
 
-  // รีเฟรชหน้าเว็บอัตโนมัติหลัง export สำเร็จ (รอ 1.5 วิ ให้ download/share เสร็จก่อน)
+  // รีเฟรชหน้าเว็บอัตโนมัติหลัง export สำเร็จ (รอให้ผู้ใช้เห็น toast ก่อน)
   if (exportSuccess) {
-    setTimeout(() => location.reload(), 1500);
+    setTimeout(() => location.reload(), 3000);
   }
+}
+
+// แชร์ไฟล์ทีละไฟล์ — fallback สำหรับมือถือที่ multi-file share ไม่ได้
+// คืน true ถ้าผู้ใช้กดยกเลิก
+async function shareFilesSequentially(files) {
+  for (let i = 0; i < files.length; i++) {
+    try {
+      if (!navigator.canShare({ files: [files[i]] })) {
+        throw new Error('canShare false');
+      }
+      await navigator.share({ files: [files[i]], title: files[i].name });
+      // delay สั้นๆ เพื่อกัน race condition
+      if (i < files.length - 1) await new Promise(r => setTimeout(r, 300));
+    } catch (e) {
+      if (e.name === 'AbortError') return true; // ผู้ใช้กดยกเลิก
+      throw e;
+    }
+  }
+  showToast('✅ ส่งสำเร็จ ' + files.length + ' รูป', 'ok');
+  return false;
 }
 
 // ============================================================================
 //  RESET
 // ============================================================================
 function confirmReset() {
-  if (!confirm('ล้างข้อมูลทั้งหมดและเริ่มงานใหม่ใช่หรือไม่?\n\n(ข้อมูลที่บันทึกแล้วยังอยู่ใน Google Sheets ไม่ถูกลบ)')) return;
+  if (!confirm('ล้างหน้าจอใช่หรือไม่?\n\n(ข้อมูลที่บันทึกแล้วยังอยู่ในระบบ — เลือกวันที่เดิมเพื่อโหลดกลับมาได้)')) return;
   clearTimeout(_saveTimer);
   jobItems = [];
-  document.getElementById('jobDate').value = todayISO();
   document.getElementById('existingStatus').innerHTML = '';
   setSaveStatus('', '');
   renderJobItems();
-  showToast('ล้างฟอร์มเรียบร้อย', 'ok');
-  loadExisting();
+  showToast('ล้างหน้าจอเรียบร้อย', 'ok');
+  // ไม่เรียก loadExisting() — ผู้ใช้กดเปลี่ยนวันที่เองถ้าอยากโหลดกลับ
 }
 
 // ============================================================================

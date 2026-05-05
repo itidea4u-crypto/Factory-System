@@ -558,20 +558,29 @@ function resizeImage(file, maxDim, q) {
     r.onload = e => {
       const img = new Image();
       img.onload = () => {
-        let {width: w, height: h} = img;
-        if (Math.max(w,h) > maxDim) {
-          if (w > h) { h = h*(maxDim/w); w = maxDim; }
-          else { w = w*(maxDim/h); h = maxDim; }
+        try {
+          let {width: w, height: h} = img;
+          if (Math.max(w,h) > maxDim) {
+            if (w > h) { h = h*(maxDim/w); w = maxDim; }
+            else { w = w*(maxDim/h); h = maxDim; }
+          }
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          const dataUrl = c.toDataURL('image/jpeg', q);
+          if (!dataUrl || dataUrl === 'data:,') {
+            rej(new Error('canvas.toDataURL ล้มเหลว (อาจหน่วยความจำไม่พอ)'));
+            return;
+          }
+          res(dataUrl);
+        } catch (err) {
+          rej(new Error('Canvas error: ' + err.message));
         }
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        c.getContext('2d').drawImage(img, 0, 0, w, h);
-        res(c.toDataURL('image/jpeg', q));
       };
-      img.onerror = rej;
+      img.onerror = () => rej(new Error('โหลดรูปไม่ได้ (อาจไฟล์เสีย หรือ format ไม่รองรับ เช่น HEIC)'));
       img.src = e.target.result;
     };
-    r.onerror = rej;
+    r.onerror = () => rej(new Error('อ่านไฟล์ไม่ได้: ' + (r.error?.message || 'unknown')));
     r.readAsDataURL(file);
   });
 }
@@ -669,23 +678,70 @@ async function loadExisting() {
 //  FILE UPLOAD — รับ team จากปุ่มของแต่ละทีม
 // ============================================================================
 async function handleFiles(files, team) {
-  if (!files || !files.length) return;
-  if (!team) { showToast('ระบุทีมไม่สำเร็จ', 'error'); return; }
+  console.log('═══════════════════════════════════════');
+  console.log('[handleFiles] เริ่ม - รับมา', files?.length || 0, 'ไฟล์ ทีม:', team);
+  if (files && files.length) {
+    console.log('[handleFiles] รายชื่อไฟล์:');
+    Array.from(files).forEach((f, i) => {
+      console.log('  ' + (i+1) + '.', f.name, '|', f.type, '|', (f.size/1024).toFixed(1)+'KB');
+    });
+  }
 
-  // ต้องเลือกวันที่ก่อน
+  if (!files || !files.length) {
+    console.warn('[handleFiles] ไม่มีไฟล์ - หยุด');
+    return;
+  }
+  if (!team) {
+    console.error('[handleFiles] ไม่มี team - หยุด');
+    showToast('ระบุทีมไม่สำเร็จ', 'error');
+    return;
+  }
+
   const date = document.getElementById('jobDate').value;
-  if (!date) { showToast('กรุณาเลือกวันที่ก่อนเพิ่มรูป', 'error'); return; }
+  if (!date) {
+    console.error('[handleFiles] ไม่มีวันที่ - หยุด');
+    showToast('กรุณาเลือกวันที่ก่อนเพิ่มรูป', 'error');
+    return;
+  }
 
+  console.log('[handleFiles] jobItems ก่อนเริ่ม:', jobItems.length, 'รายการ');
   showLoading('กำลังประมวลผล ' + files.length + ' รูป...');
-  try {
-    for (const f of files) {
-      if (!f.type.startsWith('image/')) continue;
+
+  let processed = 0, skipped = 0, failed = 0;
+  // *** สำคัญ: process แต่ละไฟล์แยก try/catch ไม่ให้รูปนึงพังทำให้รูปอื่นพัง ***
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    try {
+      console.log('[handleFiles] รูปที่', (i+1), 'กำลังประมวลผล:', f.name);
+      if (!f.type.startsWith('image/')) {
+        console.warn('[handleFiles] รูปที่', (i+1), 'ไม่ใช่รูปภาพ - ข้าม:', f.type);
+        skipped++;
+        continue;
+      }
       const data = await resizeImage(f, 1400, 0.82);
-      jobItems.push({ tempId: uid(), imageData: data, location: '', note: '', team, isNew: true });
+      console.log('[handleFiles] รูปที่', (i+1), 'resize เสร็จ - ขนาด data:', data.length, 'chars');
+      const newItem = { tempId: uid(), imageData: data, location: '', note: '', team, isNew: true };
+      jobItems.push(newItem);
+      console.log('[handleFiles] รูปที่', (i+1), 'push แล้ว - tempId:', newItem.tempId, '| jobItems ตอนนี้:', jobItems.length);
+      processed++;
+    } catch (e) {
+      console.error('[handleFiles] รูปที่', (i+1), 'พัง:', e.message, e);
+      failed++;
     }
-    renderJobItems();
-  } catch (e) { showToast('ประมวลผลรูปไม่สำเร็จ', 'error'); }
-  finally { hideLoading(); }
+  }
+
+  console.log('[handleFiles] สรุป: ประมวลสำเร็จ', processed, '| ข้าม', skipped, '| ล้มเหลว', failed);
+  console.log('[handleFiles] jobItems หลังเสร็จ:', jobItems.length, 'รายการ');
+  console.log('[handleFiles] รายการใน jobItems:', jobItems.map(j => ({key: j.id||j.tempId, team: j.team, isNew: j.isNew})));
+
+  if (failed > 0) {
+    showToast('ประมวลผลรูปบางรูปไม่สำเร็จ (' + failed + '/' + files.length + ')', 'error');
+  }
+
+  hideLoading();
+  console.log('[handleFiles] เรียก renderJobItems...');
+  renderJobItems();
+  console.log('═══════════════════════════════════════');
   scheduleAutoSave(800);
 }
 

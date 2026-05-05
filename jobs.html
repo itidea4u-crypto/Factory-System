@@ -467,7 +467,7 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
     <a href="index.html" class="home-btn" title="กลับหน้าหลัก">🏠</a>
     <div>
       <div class="app-title">ใบงานช่าง</div>
-      <div class="app-subtitle">Job Order Management · v2.0-debug</div>
+      <div class="app-subtitle">Job Order Management · v2.1-fix-multi</div>
     </div>
   </div>
   <button class="btn-reset" onclick="confirmReset()">🗑️ เริ่มงานใหม่</button>
@@ -522,7 +522,7 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 <!-- Debug panel -->
 <div class="debug-panel" id="debugPanel">
   <div class="debug-panel-header">
-    <div class="debug-panel-title">🐛 DEBUG LOG (v2.0)</div>
+    <div class="debug-panel-title">🐛 DEBUG LOG (v2.1)</div>
     <div class="debug-panel-actions">
       <button class="debug-panel-btn" onclick="copyDebugLog()">📋 คัดลอก</button>
       <button class="debug-panel-btn" onclick="clearDebugLog()">🗑️ ล้าง</button>
@@ -628,7 +628,7 @@ function fallbackCopy(text) {
 
 // log version onload
 window.addEventListener('DOMContentLoaded', () => {
-  dbg('info', '════ ระบบเริ่มทำงาน v2.0-debug ════');
+  dbg('info', '════ ระบบเริ่มทำงาน v2.1-fix-multi ════');
   dbg('info', 'User Agent:', navigator.userAgent);
   dbg('info', 'Screen:', screen.width + 'x' + screen.height);
 });
@@ -806,6 +806,21 @@ async function loadExisting() {
 // ============================================================================
 //  FILE UPLOAD — รับ team จากปุ่มของแต่ละทีม
 // ============================================================================
+// Wrapper ที่ clone FileList เป็น Array ก่อน เพื่อกัน FileList ถูกล้างกลาง async loop
+function onFileInputChange(inputEl, team) {
+  // *** สำคัญ: clone files เป็น array ก่อน ***
+  // เพราะ inputEl.files เป็น live FileList ที่ผูกกับ <input>
+  // ถ้าเราล้าง inputEl.value (ซึ่งจำเป็นเพื่อให้เลือกไฟล์เดิมซ้ำได้)
+  // FileList จะถูกล้างไปด้วย ทำให้ async loop หยุดกลางคัน
+  const filesArray = Array.from(inputEl.files || []);
+
+  // ล้าง input ทันที (ตอนนี้ปลอดภัย เพราะ array แยกออกมาแล้ว)
+  inputEl.value = '';
+
+  // ส่ง array ที่ clone แล้วเข้า handler
+  handleFiles(filesArray, team);
+}
+
 async function handleFiles(files, team) {
   // เปิด debug panel อัตโนมัติทุกครั้งที่อัปรูป
   document.getElementById('debugPanel').classList.add('show');
@@ -910,7 +925,7 @@ function renderJobItems() {
       '</div>' +
       '<div class="team-box-body">' +
         '<input type="file" id="' + teamId + '" accept="image/*" multiple class="visually-hidden" ' +
-          'onchange="handleFiles(event.target.files, \'' + team.replace(/'/g,"\\'") + '\'); this.value=\'\';">' +
+          'onchange="onFileInputChange(this, \'' + team.replace(/'/g,"\\'") + '\')">' +
         '<label class="team-upload-btn" for="' + teamId + '">' +
           '🖼️ เลือกรูปจากคลังให้ทีมนี้' +
           '<span class="team-upload-hint">ลากไฟล์มาวางได้ · เลือกหลายรูปพร้อมกันได้</span>' +

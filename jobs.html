@@ -329,6 +329,21 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .preview-section.collapsed #printPagesContainer { display: none; }
 .preview-section.collapsed .preview-toggle .arrow { transform: rotate(-90deg); }
 .preview-toggle .arrow { transition: transform 0.2s; display: inline-block; }
+/* visually-hidden file input — ปลอดภัยกว่า display:none บน iOS เก่า */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0,0,0,0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 #jobItemsContainer:empty { display: none; }
 
 /* Team box (one per team) */
@@ -363,18 +378,29 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .team-box-count.has-items { background: #1A1A1A; color: #FFF; border-color: #1A1A1A; }
 .team-box-body { padding: 10px 12px 12px; }
 .team-upload-btn {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; min-height: 48px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+  width: 100%; min-height: 56px; padding: 10px;
   background: #FFF; border: 2px dashed #B5B0A4;
   font-family: 'Kanit', sans-serif; font-weight: 500; font-size: 15px;
   color: #1A1A1A; cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s; text-align: center;
 }
 .team-upload-btn:hover, .team-upload-btn:active {
   border-color: #2D5016; background: #F0F4EB; color: #2D5016;
 }
 .team-box.installation .team-upload-btn:hover, .team-box.installation .team-upload-btn:active {
   border-color: #C1440E; background: #FBF1EC; color: #C1440E;
+}
+.team-upload-hint {
+  font-size: 11px; color: #8A8278; font-weight: 400;
+}
+.team-box.drag-active .team-upload-btn {
+  border-color: #2D5016; background: #F0F4EB;
+  border-style: solid; transform: scale(1.01);
+}
+.team-box.installation.drag-active .team-upload-btn {
+  border-color: #C1440E; background: #FBF1EC;
 }
 .team-job-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .team-empty-hint {
@@ -684,23 +710,25 @@ function renderJobItems() {
   }
 
   let html = '';
-  for (const team of teams) {
+  for (let teamIdx = 0; teamIdx < teams.length; teamIdx++) {
+    const team = teams[teamIdx];
     const items = itemsByTeam[team];
     const count = items.length;
     const safeTeam = esc(team);
-    const teamId = 'team-' + team.replace(/[^a-zA-Z0-9ก-๙]/g, '_');
+    const teamId = 'team-upload-' + teamIdx; // ASCII-safe ID
 
-    html += '<div class="team-box ' + typeCls + '" data-team="' + safeTeam + '">' +
+    html += '<div class="team-box ' + typeCls + '" data-team="' + safeTeam + '" data-team-idx="' + teamIdx + '">' +
       '<div class="team-box-header">' +
         '<div class="team-box-name">' + (isInstall ? '🛠️' : '🔨') + ' ' + safeTeam + '</div>' +
         '<div class="team-box-count' + (count > 0 ? ' has-items' : '') + '">' + count + ' รูป</div>' +
       '</div>' +
       '<div class="team-box-body">' +
-        '<button class="team-upload-btn" onclick="document.getElementById(\'' + teamId + '\').click()">' +
+        '<input type="file" id="' + teamId + '" accept="image/*" multiple class="visually-hidden" ' +
+          'onchange="handleFiles(event.target.files, \'' + team.replace(/'/g,"\\'") + '\'); this.value=\'\';">' +
+        '<label class="team-upload-btn" for="' + teamId + '">' +
           '🖼️ เลือกรูปจากคลังให้ทีมนี้' +
-        '</button>' +
-        '<input type="file" id="' + teamId + '" accept="image/*" multiple style="display:none" ' +
-          'onchange="handleFiles(event.target.files, \'' + team.replace(/'/g,"\\'") + '\'); this.value=\'\';">';
+          '<span class="team-upload-hint">ลากไฟล์มาวางได้ · เลือกหลายรูปพร้อมกันได้</span>' +
+        '</label>';
 
     if (count === 0) {
       html += '<div class="team-empty-hint">ยังไม่มีรูปสำหรับทีมนี้</div>';
@@ -763,6 +791,44 @@ function renderJobItems() {
     });
     window._sortables.push(sortable);
   });
+
+  // Drag-and-drop ไฟล์จาก File Explorer (ใช้บน desktop)
+  document.querySelectorAll('.team-box').forEach(box => {
+    const team = box.dataset.team;
+    box.addEventListener('dragenter', (e) => {
+      if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+        box.classList.add('drag-active');
+      }
+    });
+    box.addEventListener('dragover', (e) => {
+      if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+    box.addEventListener('dragleave', (e) => {
+      if (!box.contains(e.relatedTarget)) box.classList.remove('drag-active');
+    });
+    box.addEventListener('drop', (e) => {
+      e.preventDefault();
+      box.classList.remove('drag-active');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        handleFiles(e.dataTransfer.files, team);
+      }
+    });
+  });
+
+  // กันไม่ให้ browser เปิดไฟล์เมื่อลากนอกกล่อง
+  if (!window._dropGuardInstalled) {
+    window.addEventListener('dragover', (e) => {
+      if (e.dataTransfer && e.dataTransfer.types.includes('Files')) e.preventDefault();
+    });
+    window.addEventListener('drop', (e) => {
+      if (e.dataTransfer && e.dataTransfer.types.includes('Files')) e.preventDefault();
+    });
+    window._dropGuardInstalled = true;
+  }
 
   // Update preview + sticky bar
   renderPreview();

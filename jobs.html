@@ -156,7 +156,19 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .print-page {
   background: #FFF; border: 1px solid #E5E0D5;
   margin-bottom: 12px; padding: 10mm 12mm;
-  width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  width: 210mm; height: 297mm;
+  max-width: 100%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-sizing: border-box;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+@media (max-width: 820px) {
+  /* บนมือถือ: คงสัดส่วน A4 แต่ scale ลงให้พอดีจอ */
+  .print-page {
+    width: 100%; height: auto; aspect-ratio: 210 / 297;
+    padding: 3vw 3.5vw;
+  }
 }
 /* Print page header — installation: BIG RED Archivo Black */
 .print-page.installation .print-page-header {
@@ -189,9 +201,9 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
   font-family: 'Kanit', sans-serif; font-size: 14px;
   margin-top: 3px; color: #1A1A1A;
 }
-.print-grid { display: grid; gap: 6px; }
-.print-grid.cols-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; height: 200mm; }
-.print-grid.cols-2-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; height: 200mm; }
+.print-grid { display: grid; gap: 6px; flex: 1; min-height: 0; }
+.print-grid.cols-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.print-grid.cols-2-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
 
 /* Production cell */
 .print-cell-production {
@@ -205,11 +217,12 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .cell-num-badge {
   position: absolute; top: 0; left: 0;
   font-family: 'Archivo Black', sans-serif;
-  font-size: 20px; line-height: 1;
+  font-size: 14px; line-height: 1;
   color: #FFF; background: #1A1A1A;
-  padding: 6px 11px;
-  z-index: 2; min-width: 30px; text-align: center;
+  padding: 4px 8px;
+  z-index: 2; min-width: 24px; text-align: center;
   border-bottom-right-radius: 3px;
+  letter-spacing: 0.5px;
 }
 
 /* Installation cell — matches reference: title row + notes + image at bottom */
@@ -608,14 +621,25 @@ async function apiCall(body) {
 // ============================================================================
 //  TYPE / DATE
 // ============================================================================
-function selectWorkType(wt) {
+async function selectWorkType(wt) {
   if (wt === workType) return;
-  // ถ้ามีรูปยังไม่บันทึก ให้เตือน
-  const hasUnsaved = jobItems.some(j => j.isNew);
-  if (hasUnsaved && !confirm('เปลี่ยนประเภทงานจะล้างรูปที่ยังไม่บันทึก\nดำเนินการต่อ?')) {
-    document.querySelectorAll('[data-wt]').forEach(b => b.classList.toggle('active', b.dataset.wt === workType));
-    return;
+
+  // บันทึกของเก่าก่อน (ถ้ามีรูปที่ยังไม่บันทึก)
+  const hasUnsaved = jobItems.some(j => j.isNew || j._dirty);
+  if (hasUnsaved) {
+    showLoading('กำลังบันทึกก่อนสลับประเภท...');
+    try {
+      await flushSave();
+    } catch (e) {
+      hideLoading();
+      if (!confirm('บันทึกไม่สำเร็จ — สลับประเภทตอนนี้จะทำให้รูปที่ยังไม่บันทึกหาย\nดำเนินการต่อ?')) {
+        document.querySelectorAll('[data-wt]').forEach(b => b.classList.toggle('active', b.dataset.wt === workType));
+        return;
+      }
+    }
+    hideLoading();
   }
+
   workType = wt;
   document.querySelectorAll('[data-wt]').forEach(b => b.classList.toggle('active', b.dataset.wt === wt));
   onDateChange();
@@ -1189,7 +1213,7 @@ async function exportAllPages() {
   const sec = document.getElementById('previewSection');
   const wasCollapsed = sec.classList.contains('collapsed');
   if (wasCollapsed) sec.classList.remove('collapsed');
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 200));
 
   const pages = document.querySelectorAll('[id^="printPage_"]');
   if (!pages.length) {
@@ -1201,9 +1225,15 @@ async function exportAllPages() {
   const date = document.getElementById('jobDate').value;
   const typeLabel = workType === 'production' ? 'ผลิต' : 'ติดตั้ง';
 
+  // A4 ที่ 96 DPI: 210mm x 297mm = 794 x 1123 px
+  // ใช้ scale 2 → 1588 x 2246 px (พิมพ์คมชัด)
+  const A4_WIDTH_PX = 794;
+  const A4_HEIGHT_PX = 1123;
+
   showLoading('กำลังสร้างรูป (' + pages.length + ' หน้า)...');
   await new Promise(r => setTimeout(r, 150));
 
+  let exportSuccess = false;
   try {
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
@@ -1212,7 +1242,14 @@ async function exportAllPages() {
       const totalTeamPages = parseInt(page.dataset.totalTeamPages || '1', 10);
 
       const canvas = await html2canvas(page, {
-        backgroundColor: '#FFFFFF', scale: 2, useCORS: true, logging: false,
+        backgroundColor: '#FFFFFF',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        width: A4_WIDTH_PX,
+        height: A4_HEIGHT_PX,
+        windowWidth: A4_WIDTH_PX,
+        windowHeight: A4_HEIGHT_PX,
       });
 
       // sanitize team name สำหรับชื่อไฟล์ ('/' ใช้ไม่ได้)
@@ -1252,11 +1289,17 @@ async function exportAllPages() {
       if (i < pages.length - 1) await new Promise(r => setTimeout(r, 300));
     }
 
-    showToast('บันทึก ' + pages.length + ' รูปเรียบร้อย ✅', 'ok');
+    exportSuccess = true;
+    showToast('บันทึก ' + pages.length + ' รูปเรียบร้อย ✅ — กำลังรีเฟรชหน้า...', 'ok');
   } catch (e) { showToast('สร้างรูปไม่สำเร็จ: ' + e.message, 'error'); }
   finally {
     hideLoading();
     if (wasCollapsed) sec.classList.add('collapsed');
+  }
+
+  // รีเฟรชหน้าเว็บอัตโนมัติหลัง export สำเร็จ (รอ 1.5 วิ ให้ download/share เสร็จก่อน)
+  if (exportSuccess) {
+    setTimeout(() => location.reload(), 1500);
   }
 }
 

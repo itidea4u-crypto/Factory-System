@@ -657,29 +657,63 @@ function showLoading(msg) {
 function hideLoading() { document.getElementById('loadingOverlay').classList.remove('show'); }
 
 // ============================================================================
+//  IMAGE ERROR HANDLER — ถ้ารูปโหลดไม่ได้ ลอง URL สำรองอัตโนมัติ
+// ============================================================================
+function handleImgError(imgEl) {
+  // เก็บ URLs ที่ลองแล้ว ป้องกัน loop infinite
+  if (!imgEl.dataset.attempt) imgEl.dataset.attempt = '0';
+  const attempt = parseInt(imgEl.dataset.attempt, 10);
+
+  const originalUrl = imgEl.dataset.original || imgEl.src;
+  const idMatch = String(originalUrl).match(/[?&]id=([a-zA-Z0-9_-]+)|\/d\/([a-zA-Z0-9_-]+)/);
+  if (!idMatch) {
+    imgEl.style.background = '#F5F3EE';
+    return;
+  }
+  const fileId = idMatch[1] || idMatch[2];
+
+  // ลำดับ fallback: thumbnail → uc → lh3 → ยอมแพ้
+  const fallbacks = [
+    'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1200',
+    'https://drive.google.com/uc?export=view&id=' + fileId,
+    'https://lh3.googleusercontent.com/d/' + fileId + '=w800',
+  ];
+
+  if (attempt < fallbacks.length) {
+    const nextUrl = fallbacks[attempt];
+    // ห้ามใช้ URL เดิมที่พังไปแล้ว
+    if (nextUrl !== imgEl.src) {
+      imgEl.dataset.attempt = String(attempt + 1);
+      imgEl.src = nextUrl;
+      return;
+    }
+    // ข้ามไปลองอันถัดไป
+    imgEl.dataset.attempt = String(attempt + 1);
+    handleImgError(imgEl);
+    return;
+  }
+
+  // ลองครบทุก URL แล้วยังไม่ได้ → ยอมแพ้ แสดง placeholder
+  imgEl.style.background = '#F5F3EE';
+  imgEl.style.opacity = '0.4';
+}
+
+// ============================================================================
 //  IMAGE LOADING — Drive thumbnail URL ไม่ stable + rate-limit
 //  ลองหลาย URL format เป็น fallback + cache dataURL ลด re-fetch
 // ============================================================================
 const _imgCache = new Map(); // url → dataURL
 
-// แปลง imageUrl ของ Drive เป็น URL ทางเลือก
-// thumbnail?id=XXX หรือ uc?id=XXX → ลองหลายแบบ
+// แปลง imageUrl ของ Drive — backend ส่ง thumbnail?id=XXX มาอยู่แล้ว ใช้ตรงๆ
+// แค่ check cache ก่อน เผื่อเคย fetch เป็น dataURL ไว้
 function resolveImageUrl(originalUrl) {
   if (!originalUrl) return '';
-  // Cached?
   if (_imgCache.has(originalUrl)) return _imgCache.get(originalUrl);
-
-  // Drive URL — extract file ID
-  const idMatch = String(originalUrl).match(/[?&]id=([a-zA-Z0-9_-]+)|\/d\/([a-zA-Z0-9_-]+)/);
-  if (idMatch) {
-    const fileId = idMatch[1] || idMatch[2];
-    // ใช้ lh3.googleusercontent.com — CDN cache ของ Google ที่ stable กว่า
-    return 'https://lh3.googleusercontent.com/d/' + fileId + '=w1200';
-  }
-  return originalUrl;
+  return originalUrl; // ใช้ URL เดิมจาก backend
 }
 
-// fetch Drive image แบบหลาย attempt + cache
+// fetch Drive image แบบ best-effort + cache เป็น dataURL
+// ใช้สำหรับ pre-fetch หลัง loadExisting เพื่อกันรูปหายเมื่อ render หลายๆ ครั้ง
 async function fetchAndCacheImage(originalUrl) {
   if (!originalUrl) return '';
   if (_imgCache.has(originalUrl)) return _imgCache.get(originalUrl);
@@ -688,11 +722,13 @@ async function fetchAndCacheImage(originalUrl) {
   if (!idMatch) return originalUrl;
   const fileId = idMatch[1] || idMatch[2];
 
-  // ลอง URL หลายแบบ — Google บางครั้ง endpoint นึงเสีย อีกอันยังใช้ได้
+  // ลอง URL หลายแบบ — รูปจาก Apps Script ส่ง thumbnail URL มา
+  // ลำดับ: thumbnail → uc → lh3
   const urls = [
-    'https://lh3.googleusercontent.com/d/' + fileId + '=w1200',
+    originalUrl, // ลองตัวเดิมก่อน
     'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1200',
     'https://drive.google.com/uc?export=view&id=' + fileId,
+    'https://lh3.googleusercontent.com/d/' + fileId + '=w1200',
   ];
 
   for (const url of urls) {
@@ -700,7 +736,9 @@ async function fetchAndCacheImage(originalUrl) {
       const res = await fetch(url, { mode: 'cors' });
       if (!res.ok) continue;
       const blob = await res.blob();
-      if (blob.size < 100) continue; // < 100 bytes = error placeholder
+      if (blob.size < 200) continue; // < 200 bytes = error placeholder
+      // ตรวจว่าเป็นรูปจริง ไม่ใช่ HTML error page
+      if (!blob.type.startsWith('image/')) continue;
       const dataUrl = await new Promise((resolve, reject) => {
         const fr = new FileReader();
         fr.onload = () => resolve(fr.result);
@@ -713,7 +751,6 @@ async function fetchAndCacheImage(originalUrl) {
       // ลอง URL ถัดไป
     }
   }
-  // ทุก URL ล้มเหลว — return ตัว original ให้ <img onerror> handle
   return originalUrl;
 }
 
@@ -987,7 +1024,7 @@ function renderJobItems() {
 
         html += '<div class="job-item" data-key="' + key + '">' +
           '<div class="drag-handle">⋮⋮</div>' +
-          '<img class="job-thumb" src="' + esc(imgSrc) + '" referrerpolicy="no-referrer" onerror="this.style.background=\'#F5F3EE\'">' +
+          '<img class="job-thumb" src="' + esc(imgSrc) + '" data-original="' + esc(item.imageUrl||'') + '" referrerpolicy="no-referrer" onerror="handleImgError(this)">' +
           '<div class="job-fields">' +
             '<div class="job-num">ใบที่ ' + (idx+1) + ' <span class="badge ' + badgeCls + '">' + badgeText + '</span></div>' +
             (isInstall
@@ -1337,7 +1374,7 @@ function buildPage(pageItems, start, isInstall, perPage, team, date, pageNum, to
 
     if (isInstall) {
       const imgPart = imgSrc
-        ? '<img src="' + esc(imgSrc) + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2">'
+        ? '<img src="' + esc(imgSrc) + '" data-original="' + esc(item?.imageUrl||'') + '" referrerpolicy="no-referrer" onerror="handleImgError(this)">'
         : '<div class="empty-cell"></div>';
       const noteHtml = item?.note
         ? '<div class="print-cell-note">' + esc(item.note) + '</div>'
@@ -1353,7 +1390,7 @@ function buildPage(pageItems, start, isInstall, perPage, team, date, pageNum, to
       '</div>';
     } else {
       const imgPart = imgSrc
-        ? '<img src="' + esc(imgSrc) + '" referrerpolicy="no-referrer" onerror="this.style.opacity=0.2">'
+        ? '<img src="' + esc(imgSrc) + '" data-original="' + esc(item?.imageUrl||'') + '" referrerpolicy="no-referrer" onerror="handleImgError(this)">'
         : '<div class="print-cell-empty"></div>';
       const numBadge = item ? '<div class="cell-num-badge">' + numStr + '</div>' : '';
       cells += '<div class="print-cell-production">' + numBadge + imgPart + '</div>';
@@ -1418,7 +1455,7 @@ function buildSummaryPage(workTypeKey, allItems, date, summaryIdx) {
         const loc = item.location ? '<div class="summary-thumb-loc">' + esc(item.location) + '</div>' : '';
         teamHtml += '<div class="summary-thumb">' +
           '<div class="summary-thumb-num">' + numStr + '</div>' +
-          (imgSrc ? '<img src="' + esc(imgSrc) + '" referrerpolicy="no-referrer">' : '') +
+          (imgSrc ? '<img src="' + esc(imgSrc) + '" data-original="' + esc(item.imageUrl||'') + '" referrerpolicy="no-referrer" onerror="handleImgError(this)">' : '') +
           loc +
         '</div>';
       }

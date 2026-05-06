@@ -202,8 +202,15 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
   margin-top: 3px; color: #1A1A1A;
 }
 .print-grid { display: grid; gap: 6px; flex: 1; min-height: 0; }
-.print-grid.cols-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-.print-grid.cols-2-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
+.print-grid.cols-2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+.print-grid.cols-2-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+.print-grid > * { min-height: 0; min-width: 0; }
 
 /* Production cell */
 .print-cell-production {
@@ -1638,7 +1645,9 @@ async function exportAllPages() {
   // ─── สร้าง summary pages ใน DOM (ซ่อนแต่ html2canvas จับได้) ───
   const summaryContainer = document.createElement('div');
   summaryContainer.id = 'summaryPagesContainer';
-  summaryContainer.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:visible;';
+  // ต้องบังคับ width ให้เป็น A4 เพื่อให้ grid ภายในคำนวณขนาดถูกต้อง
+  // (ถ้าไม่ใส่ width container จะหด เนื้อหาในจะใหญ่ผิดสัดส่วน)
+  summaryContainer.style.cssText = 'position:absolute;left:-99999px;top:0;width:210mm;visibility:visible;';
 
   let summaryHtml = '';
   if (prodItems.length > 0) summaryHtml += buildSummaryPage('production', prodItems, date, 0);

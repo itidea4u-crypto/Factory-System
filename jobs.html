@@ -388,6 +388,104 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 }
 .save-status.error:hover { background: #1A1A1A; }
 
+/* Result modal — แสดงรูปเสร็จแล้ว ให้ผู้ใช้กดส่ง/บันทึก */
+.result-modal {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+}
+.result-modal-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.6);
+}
+.result-modal-content {
+  position: relative; z-index: 1;
+  background: #FFF; max-width: 600px; width: calc(100% - 24px);
+  max-height: calc(100vh - 40px); overflow-y: auto;
+  border-radius: 8px; display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+}
+.result-modal-header {
+  position: sticky; top: 0; background: #FFF;
+  padding: 14px 16px; border-bottom: 1px solid #E5E0D5;
+  display: flex; align-items: center; justify-content: space-between;
+  z-index: 2;
+}
+.result-modal-title {
+  font-family: 'Kanit', sans-serif; font-weight: 700; font-size: 18px;
+  color: #2D5016;
+}
+.result-modal-close {
+  background: transparent; border: 1px solid #D6D1C7;
+  width: 36px; height: 36px; border-radius: 50%;
+  font-size: 16px; cursor: pointer; color: #5A5550;
+}
+.result-modal-close:hover { background: #F5F3EE; }
+.result-modal-hint {
+  padding: 12px 16px; background: #F0F4EB;
+  font-family: 'Sarabun', sans-serif; font-size: 14px;
+  color: #1A1A1A; line-height: 1.5;
+  border-bottom: 1px solid #E5E0D5;
+}
+.result-modal-list {
+  padding: 12px; display: flex; flex-direction: column; gap: 12px;
+}
+.result-item {
+  display: flex; gap: 12px; align-items: center;
+  border: 1px solid #E5E0D5; padding: 10px; border-radius: 6px;
+  background: #FAFAF7;
+}
+.result-img {
+  width: 80px; height: 100px; object-fit: contain;
+  background: #FFF; border: 1px solid #D6D1C7;
+  flex-shrink: 0;
+}
+.result-item-info {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.result-item-name {
+  font-family: 'Sarabun', sans-serif; font-size: 13px;
+  color: #1A1A1A; word-break: break-word; line-height: 1.3;
+}
+.result-item-actions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.result-btn {
+  padding: 8px 14px; border: none; cursor: pointer;
+  font-family: 'Kanit', sans-serif; font-size: 14px; font-weight: 600;
+  border-radius: 4px; min-height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none; gap: 4px;
+}
+.result-btn-share {
+  background: #00C300; color: #FFF;
+}
+.result-btn-share:hover, .result-btn-share:active { background: #00A300; }
+.result-btn-save {
+  background: #FFF; color: #1A1A1A;
+  border: 1.5px solid #1A1A1A;
+}
+.result-btn-save:hover, .result-btn-save:active { background: #F5F3EE; }
+.result-modal-footer {
+  position: sticky; bottom: 0; background: #FFF;
+  padding: 12px 16px; border-top: 1px solid #E5E0D5;
+  display: flex; gap: 10px; justify-content: space-between;
+}
+.result-btn-all {
+  background: #FFF; border: 1.5px solid #5A5550; color: #5A5550;
+  padding: 10px 16px; cursor: pointer;
+  font-family: 'Kanit', sans-serif; font-size: 14px; font-weight: 500;
+  border-radius: 4px;
+}
+.result-btn-all:hover { background: #F5F3EE; }
+.result-btn-done {
+  background: #2D5016; color: #FFF; border: none;
+  padding: 10px 24px; cursor: pointer;
+  font-family: 'Kanit', sans-serif; font-size: 14px; font-weight: 600;
+  border-radius: 4px;
+}
+.result-btn-done:hover { background: #1A1A1A; }
+
 /* Sticky bottom export bar */
 .sticky-export {
   position: fixed; bottom: 0; left: 0; right: 0;
@@ -1609,80 +1707,124 @@ async function exportAllPages() {
     summaryContainer.remove();
     hideLoading();
 
-    // ─── ขั้น 2: ลองแชร์หลายไฟล์พร้อมกัน (Android Chrome รองรับ) ───
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: generatedFiles })) {
-      try {
-        await navigator.share({
-          files: generatedFiles,
-          title: 'งานวันที่ ' + fmtDateShort(date),
-        });
-        exportSuccess = true;
-        showToast('✅ ส่งสำเร็จ ' + generatedFiles.length + ' รูป', 'ok');
-      } catch (e) {
-        if (e.name === 'AbortError') {
-          if (wasCollapsed) sec.classList.add('collapsed');
-          return;
-        }
-        await shareFilesSequentially(generatedFiles);
-        exportSuccess = true;
-      }
-    }
-    else if (navigator.share && navigator.canShare) {
-      const aborted = await shareFilesSequentially(generatedFiles);
-      if (aborted) {
-        if (wasCollapsed) sec.classList.add('collapsed');
-        return;
-      }
-      exportSuccess = true;
-    }
-    else {
-      for (let i = 0; i < generatedFiles.length; i++) {
-        const file = generatedFiles[i];
-        const url = URL.createObjectURL(file);
-        const a = document.createElement('a');
-        a.href = url; a.download = file.name;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        if (i < generatedFiles.length - 1) await new Promise(r => setTimeout(r, 600));
-      }
-      exportSuccess = true;
-      showToast('✅ บันทึก ' + generatedFiles.length + ' รูปลงเครื่อง — ดูใน Downloads', 'ok');
-    }
+    // แสดง modal ให้ผู้ใช้เห็นรูปทั้งหมด + ปุ่มส่ง LINE/บันทึก ใต้แต่ละรูป
+    showResultModal(generatedFiles);
+    exportSuccess = true;
   } catch (e) {
     showToast('สร้างรูปไม่สำเร็จ: ' + e.message, 'error');
     summaryContainer.remove();
   }
   finally {
     hideLoading();
-    // เผื่อกรณี error ยังเหลือ container ค้าง
     const stale = document.getElementById('summaryPagesContainer');
     if (stale) stale.remove();
     if (wasCollapsed) sec.classList.add('collapsed');
   }
 
-  if (exportSuccess) {
-    setTimeout(() => location.reload(), 3000);
+  // ไม่ reload อัตโนมัติแล้ว — ผู้ใช้กดปิด modal เอง
+}
+
+// ============================================================================
+//  RESULT MODAL — แสดงรูปที่สร้างเสร็จ + ปุ่มส่ง/บันทึกใต้แต่ละรูป
+// ============================================================================
+function showResultModal(files) {
+  // ลบ modal เดิมถ้ามี
+  const existing = document.getElementById('resultModal');
+  if (existing) existing.remove();
+
+  // สร้าง object URLs (เก็บไว้ revoke ตอนปิด)
+  const objectUrls = files.map(f => URL.createObjectURL(f));
+
+  const supportsShare = !!(navigator.share && navigator.canShare);
+
+  const modal = document.createElement('div');
+  modal.id = 'resultModal';
+  modal.className = 'result-modal';
+  modal.innerHTML =
+    '<div class="result-modal-overlay" onclick="closeResultModal()"></div>' +
+    '<div class="result-modal-content">' +
+      '<div class="result-modal-header">' +
+        '<div class="result-modal-title">✅ สร้างรูปเสร็จ ' + files.length + ' รูป</div>' +
+        '<button class="result-modal-close" onclick="closeResultModal()">✕</button>' +
+      '</div>' +
+      '<div class="result-modal-hint">' +
+        (supportsShare
+          ? '📤 กด <strong>"ส่งเข้า LINE"</strong> ใต้แต่ละรูปเพื่อส่งให้ลูกน้อง<br>หรือกด <strong>"บันทึก"</strong> เพื่อเก็บไว้ใช้ทีหลัง'
+          : '💾 กด <strong>"บันทึก"</strong> ใต้แต่ละรูปเพื่อโหลดลงเครื่อง<br>(บนคอมไม่รองรับการส่งตรง — บันทึกแล้วส่งจาก LINE บนเครื่องได้)') +
+      '</div>' +
+      '<div class="result-modal-list">' +
+        files.map((file, i) => {
+          const url = objectUrls[i];
+          const shareBtn = supportsShare
+            ? '<button class="result-btn result-btn-share" onclick="shareOneFile(' + i + ')">📤 ส่ง</button>'
+            : '';
+          return '<div class="result-item">' +
+            '<img class="result-img" src="' + url + '" alt="">' +
+            '<div class="result-item-info">' +
+              '<div class="result-item-name">' + esc(file.name) + '</div>' +
+              '<div class="result-item-actions">' +
+                shareBtn +
+                '<a class="result-btn result-btn-save" href="' + url + '" download="' + esc(file.name) + '">💾 บันทึก</a>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+      '<div class="result-modal-footer">' +
+        '<button class="result-btn-all" onclick="downloadAllFiles()">💾 บันทึกทั้งหมด</button>' +
+        '<button class="result-btn-done" onclick="closeResultModal()">เสร็จแล้ว</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+
+  // เก็บ files ไว้ให้ shareOneFile ใช้
+  window._resultFiles = files;
+  window._resultUrls = objectUrls;
+}
+
+// ส่งรูป 1 ใบเข้า LINE/แอปอื่น — เรียกตรงจาก click event ไม่มี await คั่นก่อนหน้า
+async function shareOneFile(idx) {
+  const file = window._resultFiles && window._resultFiles[idx];
+  if (!file) return;
+  if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) {
+    showToast('มือถือไม่รองรับการส่งตรง — กด "บันทึก" แล้วส่งจาก LINE', 'error');
+    return;
+  }
+  try {
+    await navigator.share({ files: [file], title: file.name });
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      showToast('ส่งไม่สำเร็จ: ' + e.message, 'error');
+    }
   }
 }
 
-// แชร์ไฟล์ทีละไฟล์ — fallback สำหรับมือถือที่ multi-file share ไม่ได้
-// คืน true ถ้าผู้ใช้กดยกเลิก
-async function shareFilesSequentially(files) {
-  for (let i = 0; i < files.length; i++) {
-    try {
-      if (!navigator.canShare({ files: [files[i]] })) {
-        throw new Error('canShare false');
-      }
-      await navigator.share({ files: [files[i]], title: files[i].name });
-      // delay สั้นๆ เพื่อกัน race condition
-      if (i < files.length - 1) await new Promise(r => setTimeout(r, 300));
-    } catch (e) {
-      if (e.name === 'AbortError') return true; // ผู้ใช้กดยกเลิก
-      throw e;
-    }
+// บันทึกทุกไฟล์ลง Downloads (สำหรับคอม / กรณีอยากเก็บทั้งชุด)
+async function downloadAllFiles() {
+  const urls = window._resultUrls || [];
+  const files = window._resultFiles || [];
+  for (let i = 0; i < urls.length; i++) {
+    const a = document.createElement('a');
+    a.href = urls[i];
+    a.download = files[i].name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    if (i < urls.length - 1) await new Promise(r => setTimeout(r, 500));
   }
-  showToast('✅ ส่งสำเร็จ ' + files.length + ' รูป', 'ok');
-  return false;
+  showToast('✅ บันทึก ' + files.length + ' รูปลง Downloads แล้ว', 'ok');
+}
+
+function closeResultModal() {
+  const modal = document.getElementById('resultModal');
+  if (!modal) return;
+  // revoke object URLs ทั้งหมด
+  if (window._resultUrls) window._resultUrls.forEach(u => URL.revokeObjectURL(u));
+  window._resultFiles = null;
+  window._resultUrls = null;
+  modal.remove();
+  // reload หน้าให้กลับไปสภาพปกติ
+  location.reload();
 }
 
 // ============================================================================

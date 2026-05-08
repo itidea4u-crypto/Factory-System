@@ -150,30 +150,20 @@ const X_PAYMENT = "พี่ X โอนเอง";
 // ─── ช่างติดตั้ง ─────
 const INSTALLER_CATEGORY = "ช่างติดตั้ง";
 const INSTALLER_TEAMS = ["ทีมกุ่ง", "ทีมพี่วัฒน์", "ทีมเดือน / เล็ก / เล", "ทีมพี่เอก", "อื่น ๆ"];
-const INSTALLER_SUBTYPES = ["ค่าใช้จ่ายอื่น ๆ ในทีม", "ค่าข้าวออกนอกพื้นที่", "ค่าน้ำมัน", "ค่าทางด่วน"];
 
 // ─── ทีมมีเดีย ─────
 const MEDIA_CATEGORY = "ทีมมีเดีย";
 const MEDIA_TEAMS = ["ต่อ", "อู๋", "ต่อ + อู๋", "อื่น ๆ"];
-const MEDIA_SUBTYPES = ["ค่าน้ำมัน", "ค่าทางด่วน", "ค่าใช้จ่ายอื่น ๆ"];
 
 // ─── OT ─────
 const OT_CATEGORY = "OT";
 const OT_DEFAULT_RATE = 70;
 
-// ─── ประเภทย่อยที่กระตุ้นฟอร์มไมล์ ─────
-const FUEL_SUBTYPE = "ค่าน้ำมัน";
-
-// ─── helper: หมวดที่ต้องเลือกทีม + subtype ─────
+// ─── helper: หมวดที่ใช้ฟอร์มไมล์รวม ─────
 const TEAM_CATEGORIES = [INSTALLER_CATEGORY, MEDIA_CATEGORY];
 function getTeamsFor(category) {
   if (category === INSTALLER_CATEGORY) return INSTALLER_TEAMS;
   if (category === MEDIA_CATEGORY) return MEDIA_TEAMS;
-  return [];
-}
-function getSubtypesFor(category) {
-  if (category === INSTALLER_CATEGORY) return INSTALLER_SUBTYPES;
-  if (category === MEDIA_CATEGORY) return MEDIA_SUBTYPES;
   return [];
 }
 
@@ -262,17 +252,29 @@ function computeTeamSummary(items) {
     t.paymentMethod !== X_PAYMENT
   );
 
-  // breakdown ทีมมีเดียตามประเภทย่อย
+  // breakdown จาก mileage fields (ฟอร์มรวม)
+  // legacy: ถ้าไม่มี mileage breakdown ให้ดูจาก subType เดิม
   const computeSub = (group) => {
     const sub = { fuel: 0, toll: 0, other: 0, food: 0 };
     let totalDistance = 0;
     group.forEach(t => {
-      const st = t.subType || t.mediaSubType || "";
-      if (st === FUEL_SUBTYPE) sub.fuel += t.amount;
-      else if (st === "ค่าทางด่วน") sub.toll += t.amount;
-      else if (st === "ค่าข้าวออกนอกพื้นที่") sub.food += t.amount;
-      else sub.other += t.amount;
-      if (t.mileage && t.mileage.distance) totalDistance += t.mileage.distance;
+      const m = t.mileage;
+      if (m && (m.fuelCost > 0 || m.tollFee > 0 || m.foodCost > 0 || m.otherCost > 0)) {
+        // schema ใหม่: breakdown จาก mileage
+        sub.fuel += m.fuelCost || 0;
+        sub.toll += m.tollFee || 0;
+        sub.food += m.foodCost || 0;
+        sub.other += m.otherCost || 0;
+        if (m.distance) totalDistance += m.distance;
+      } else {
+        // schema เก่า: ดูจาก subType + amount
+        const st = t.subType || t.mediaSubType || "";
+        if (st === "ค่าน้ำมัน") sub.fuel += t.amount;
+        else if (st === "ค่าทางด่วน") sub.toll += t.amount;
+        else if (st === "ค่าข้าวออกนอกพื้นที่") sub.food += t.amount;
+        else sub.other += t.amount;
+        if (m && m.distance) totalDistance += m.distance;
+      }
     });
     return { sub, totalDistance };
   };
@@ -286,7 +288,6 @@ function computeTeamSummary(items) {
     if (t.ot && t.ot.count) otTotalPeople += t.ot.count;
   });
 
-  // helper: ดูว่ามียอด installer หรือไม่
   return {
     media, installer, ot, other,
     mediaTotal: media.reduce((s, t) => s + t.amount, 0),
@@ -305,7 +306,7 @@ function computeTeamSummary(items) {
   };
 }
 
-// alias เพื่อ backward compat (ใน UI ที่เรียก computeMediaSummary)
+// alias เพื่อ backward compat
 const computeMediaSummary = computeTeamSummary;
 
 // ─── ระบบไฟล์แนบ ─────────────────────────────────────────────────
@@ -586,11 +587,10 @@ function AddView({ onAdd }) {
     amount: "",
     paymentMethod: PAYMENT_METHODS[0],
     note: "",
-    // ทีม + ประเภทย่อย (ใช้ร่วมระหว่างช่างติดตั้ง / ทีมมีเดีย)
+    // ทีม (ช่างติดตั้ง / ทีมมีเดีย) — ฟอร์มรวม 1 บล็อก
     team: "",
-    subType: "",
-    // ฟอร์มไมล์ — ใช้เมื่อ subType = "ค่าน้ำมัน"
-    mileage: { before: "", after: "", tollFee: "", otherCost: "" },
+    // ฟอร์มรวมไมล์ + ค่าใช้จ่ายในรอบ (ทุก slot กรอกได้/เว้นได้)
+    mileage: { before: "", after: "", tollFee: "", foodCost: "", otherCost: "" },
     // ฟอร์ม OT
     ot: { workers: "", count: "", rate: OT_DEFAULT_RATE }
   });
@@ -604,29 +604,23 @@ function AddView({ onAdd }) {
     if (errors[key]) setErrors(e => ({ ...e, [key]: null }));
   };
 
-  // เซ็ต team และ subType อัตโนมัติเมื่อเปลี่ยนหมวด
+  // เซ็ต team อัตโนมัติเมื่อเปลี่ยนหมวด
   const isInstaller = form.category === INSTALLER_CATEGORY;
   const isMedia = form.category === MEDIA_CATEGORY;
   const isOT = form.category === OT_CATEGORY;
   const isTeamCategory = isInstaller || isMedia;
   const teams = getTeamsFor(form.category);
-  const subTypes = getSubtypesFor(form.category);
 
-  // เมื่อเปลี่ยน category — ตั้ง team/subType เริ่มต้นให้ตรง
+  // เมื่อเปลี่ยน category — ตั้ง team เริ่มต้นและ reset ฟอร์มไมล์
   useEffect(() => {
     if (isTeamCategory) {
-      setForm(f => ({
-        ...f,
-        team: teams[0] || "",
-        subType: subTypes[0] || ""
-      }));
+      setForm(f => ({ ...f, team: teams[0] || "" }));
     } else {
-      setForm(f => ({ ...f, team: "", subType: "" }));
+      setForm(f => ({ ...f, team: "" }));
     }
     // eslint-disable-next-line
   }, [form.category]);
 
-  const isFuelSubtype = isTeamCategory && form.subType === FUEL_SUBTYPE;
   const mileage = form.mileage;
 
   const distance = useMemo(() => {
@@ -640,23 +634,25 @@ function AddView({ onAdd }) {
   const fuelRate = useMemo(() => fuelRateFor(distance), [distance]);
 
   const fuelCost = useMemo(() => {
-    if (distance === null || fuelRate === null) return null;
+    if (distance === null || fuelRate === null) return 0;
     return distance * fuelRate;
   }, [distance, fuelRate]);
 
+  // ยอดรวม = น้ำมัน + ทางด่วน + ข้าว (เฉพาะช่าง) + อื่น ๆ
   const mileageTotal = useMemo(() => {
-    if (fuelCost === null) return null;
+    const f = fuelCost || 0;
     const t = parseFloat(mileage.tollFee) || 0;
+    const food = isInstaller ? (parseFloat(mileage.foodCost) || 0) : 0;
     const o = parseFloat(mileage.otherCost) || 0;
-    return fuelCost + t + o;
-  }, [fuelCost, mileage.tollFee, mileage.otherCost]);
+    return f + t + food + o;
+  }, [fuelCost, mileage.tollFee, mileage.foodCost, mileage.otherCost, isInstaller]);
 
-  // Auto-fill amount จากตัวคำนวณไมล์
+  // Auto-fill amount จากฟอร์มรวมไมล์ (ทุกครั้งที่อยู่ในหมวดทีม)
   useEffect(() => {
-    if (isFuelSubtype && mileageTotal !== null) {
-      setForm(f => ({ ...f, amount: mileageTotal.toFixed(2) }));
+    if (isTeamCategory) {
+      setForm(f => ({ ...f, amount: mileageTotal > 0 ? mileageTotal.toFixed(2) : "" }));
     }
-  }, [isFuelSubtype, mileageTotal]);
+  }, [isTeamCategory, mileageTotal]);
 
   // Auto-fill amount จาก OT
   const otTotal = useMemo(() => {
@@ -738,22 +734,21 @@ function AddView({ onAdd }) {
       paymentMethod: form.paymentMethod,
       note: form.note.trim(),
       attachments,
-      // ทีม + ประเภทย่อย (ช่างติดตั้ง / ทีมมีเดีย)
+      // ทีม (ช่างติดตั้ง / ทีมมีเดีย) — ฟอร์มรวม
       ...(isTeamCategory ? {
         team: form.team,
-        subType: form.subType,
-        ...(isFuelSubtype && distance !== null ? {
-          mileage: {
-            before: parseFloat(form.mileage.before),
-            after: parseFloat(form.mileage.after),
-            distance,
-            rate: fuelRate || 0,
-            fuelCost: fuelCost || 0,
-            tollFee: parseFloat(form.mileage.tollFee) || 0,
-            otherCost: parseFloat(form.mileage.otherCost) || 0,
-            total: mileageTotal || 0
-          }
-        } : {})
+        mileage: {
+          before: form.mileage.before === "" ? null : parseFloat(form.mileage.before),
+          after: form.mileage.after === "" ? null : parseFloat(form.mileage.after),
+          distance: distance || 0,
+          rate: fuelRate || 0,
+          fuelCost: fuelCost || 0,
+          tollFee: parseFloat(form.mileage.tollFee) || 0,
+          // foodCost เฉพาะช่างติดตั้ง
+          ...(isInstaller ? { foodCost: parseFloat(form.mileage.foodCost) || 0 } : {}),
+          otherCost: parseFloat(form.mileage.otherCost) || 0,
+          total: mileageTotal || 0
+        }
       } : {}),
       // OT
       ...(isOT ? {
@@ -775,8 +770,7 @@ function AddView({ onAdd }) {
       paymentMethod: PAYMENT_METHODS[0],
       note: "",
       team: "",
-      subType: "",
-      mileage: { before: "", after: "", tollFee: "", otherCost: "" },
+      mileage: { before: "", after: "", tollFee: "", foodCost: "", otherCost: "" },
       ot: { workers: "", count: "", rate: OT_DEFAULT_RATE }
     });
     setPendingFiles([]);
@@ -841,115 +835,116 @@ function AddView({ onAdd }) {
           </select>
         </Field>
 
-        {/* ─── ฟิลด์เพิ่มเติมสำหรับช่างติดตั้ง / ทีมมีเดีย ─── */}
+        {/* ─── ฟอร์มรวมสำหรับช่างติดตั้ง / ทีมมีเดีย ─── */}
         {isTeamCategory && (
           <div className={`${isInstaller ? "bg-orange-50 border-orange-200" : "bg-purple-50 border-purple-200"} border rounded-xl p-3 space-y-3`}>
             <p className={`text-[12px] font-semibold flex items-center gap-1 ${isInstaller ? "text-orange-900" : "text-purple-900"}`}>
               {isInstaller ? "🔧 รายละเอียดช่างติดตั้ง" : "🎥 รายละเอียดทีมมีเดีย"}
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label={isInstaller ? "ทีม" : "ผู้ไปงาน"}>
-                <select
-                  value={form.team}
-                  onChange={e => update("team", e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 ${isInstaller ? "border-orange-300 focus:ring-orange-500" : "border-purple-300 focus:ring-purple-500"}`}
-                >
-                  {teams.map(t => <option key={t}>{t}</option>)}
-                </select>
+
+            <Field label={isInstaller ? "ทีม" : "ผู้ไปงาน"}>
+              <select
+                value={form.team}
+                onChange={e => update("team", e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 ${isInstaller ? "border-orange-300 focus:ring-orange-500" : "border-purple-300 focus:ring-purple-500"}`}
+              >
+                {teams.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
+
+            {/* ─── ค่าน้ำมัน (auto จากเลขไมล์) ─── */}
+            <div className="bg-white rounded-lg p-3 border border-stone-200 space-y-2">
+              <p className="text-[11.5px] font-semibold text-stone-700">⛽ ค่าน้ำมัน (จากเลขไมล์)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="เลขไมล์ก่อนออก">
+                  <input
+                    type="number" step="0.1" inputMode="decimal"
+                    value={form.mileage.before}
+                    onChange={e => updateMileage("before", e.target.value)}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                  />
+                </Field>
+                <Field label="เลขไมล์หลังกลับ">
+                  <input
+                    type="number" step="0.1" inputMode="decimal"
+                    value={form.mileage.after}
+                    onChange={e => updateMileage("after", e.target.value)}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[11px]">
+                <div className="bg-stone-50 px-2 py-1.5 rounded">
+                  <p className="text-stone-500">ระยะทาง</p>
+                  <p className="font-bold text-stone-900 font-mono">
+                    {distance !== null ? `${distance.toFixed(1)} กม.` : "—"}
+                  </p>
+                </div>
+                <div className="bg-stone-50 px-2 py-1.5 rounded">
+                  <p className="text-stone-500">เรท (auto)</p>
+                  <p className="font-bold text-stone-900 font-mono">
+                    {fuelRate !== null ? `฿${fuelRate}/กม.` : "—"}
+                  </p>
+                </div>
+                <div className="bg-stone-50 px-2 py-1.5 rounded">
+                  <p className="text-stone-500">ค่าน้ำมัน</p>
+                  <p className="font-bold text-stone-900 font-mono">
+                    {fuelCost > 0 ? `฿${fmt(fuelCost)}` : "—"}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[10.5px] text-stone-500">
+                * ≤120 กม. = 6 บ./กม. · {">"}120 กม. = 5 บ./กม. — ถ้าไม่ได้ใช้รถ ปล่อยช่องเลขไมล์ว่างได้
+              </p>
+            </div>
+
+            {/* ─── ค่าใช้จ่ายอื่นในรอบ ─── */}
+            <div className={`${isInstaller ? "grid-cols-3" : "grid-cols-2"} grid gap-2`}>
+              <Field label="ค่าทางด่วน">
+                <input
+                  type="number" step="0.01" inputMode="decimal"
+                  value={form.mileage.tollFee}
+                  onChange={e => updateMileage("tollFee", e.target.value)}
+                  placeholder="0"
+                  className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                />
               </Field>
-              <Field label="ประเภทรายการ">
-                <select
-                  value={form.subType}
-                  onChange={e => update("subType", e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 ${isInstaller ? "border-orange-300 focus:ring-orange-500" : "border-purple-300 focus:ring-purple-500"}`}
-                >
-                  {subTypes.map(s => <option key={s}>{s}</option>)}
-                </select>
+              {isInstaller && (
+                <Field label="ค่าข้าวออกพื้นที่">
+                  <input
+                    type="number" step="0.01" inputMode="decimal"
+                    value={form.mileage.foodCost}
+                    onChange={e => updateMileage("foodCost", e.target.value)}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                  />
+                </Field>
+              )}
+              <Field label={isInstaller ? "ค่าใช้จ่ายอื่น ๆ ในทีม" : "ค่าใช้จ่ายอื่น ๆ"}>
+                <input
+                  type="number" step="0.01" inputMode="decimal"
+                  value={form.mileage.otherCost}
+                  onChange={e => updateMileage("otherCost", e.target.value)}
+                  placeholder="0"
+                  className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                />
               </Field>
             </div>
 
-            {isFuelSubtype && (
-              <div className="bg-white rounded-lg p-3 border border-stone-200">
-                <p className="text-[11.5px] font-semibold text-stone-700 mb-2">⛽ คำนวณค่าน้ำมัน</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="เลขไมล์ก่อนออก">
-                    <input
-                      type="number" step="0.1" inputMode="decimal"
-                      value={form.mileage.before}
-                      onChange={e => updateMileage("before", e.target.value)}
-                      placeholder="0"
-                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
-                    />
-                  </Field>
-                  <Field label="เลขไมล์หลังกลับ">
-                    <input
-                      type="number" step="0.1" inputMode="decimal"
-                      value={form.mileage.after}
-                      onChange={e => updateMileage("after", e.target.value)}
-                      placeholder="0"
-                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
-                    />
-                  </Field>
-                </div>
-
-                <div className="bg-stone-50 px-2.5 py-1.5 rounded-lg my-2 flex items-center justify-between text-[12px]">
-                  <span className="text-stone-600">ระยะทางรวม</span>
-                  <span className="font-bold text-stone-900 font-mono">
-                    {distance !== null ? `${distance.toFixed(1)} กม.` : "—"}
-                  </span>
-                </div>
-
-                <div className="bg-stone-50 px-2.5 py-1.5 rounded-lg my-2 flex items-center justify-between text-[12px]">
-                  <span className="text-stone-600">
-                    เรทค่าน้ำมัน <span className="text-stone-400">(อัตโนมัติ)</span>
-                  </span>
-                  <span className="font-bold text-stone-900 font-mono">
-                    {fuelRate !== null
-                      ? `฿${fuelRate}/กม. ${distance <= 120 ? "(≤120 กม.)" : "(>120 กม.)"}`
-                      : "—"}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="ค่าทางด่วน (บาท)">
-                    <input
-                      type="number" step="0.01" inputMode="decimal"
-                      value={form.mileage.tollFee}
-                      onChange={e => updateMileage("tollFee", e.target.value)}
-                      placeholder="0"
-                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
-                    />
-                  </Field>
-                  <Field label="ค่าอื่น ๆ (บาท)">
-                    <input
-                      type="number" step="0.01" inputMode="decimal"
-                      value={form.mileage.otherCost}
-                      onChange={e => updateMileage("otherCost", e.target.value)}
-                      placeholder="0"
-                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
-                    />
-                  </Field>
-                </div>
-
-                <div className="bg-stone-50 px-2.5 py-1.5 rounded-lg mt-2 flex items-center justify-between text-[12px]">
-                  <span className="text-stone-600">ค่าน้ำมัน</span>
-                  <span className="font-mono text-stone-700">
-                    {fuelCost !== null ? `฿${fmt(fuelCost)}` : "—"}
-                  </span>
-                </div>
-
-                <div className={`px-2.5 py-2 rounded-lg mt-2 flex items-center justify-between ${isInstaller ? "bg-orange-100" : "bg-purple-100"}`}>
-                  <span className={`text-[12px] font-semibold ${isInstaller ? "text-orange-900" : "text-purple-900"}`}>ยอดรวมรายการ</span>
-                  <span className={`text-[15px] font-bold font-mono ${isInstaller ? "text-orange-900" : "text-purple-900"}`}>
-                    {mileageTotal !== null ? `฿${fmt(mileageTotal)}` : "—"}
-                  </span>
-                </div>
-
-                <p className="text-[10.5px] text-stone-500 mt-2">
-                  * เรทคิดจากระยะทาง: ≤120 กม. = 6 บาท/กม., {">"}120 กม. = 5 บาท/กม. — ยอดรวมเติมในช่อง "จำนวนเงิน" อัตโนมัติ
-                </p>
-              </div>
-            )}
+            {/* ยอดรวม */}
+            <div className={`px-3 py-2.5 rounded-lg flex items-center justify-between ${isInstaller ? "bg-orange-100" : "bg-purple-100"}`}>
+              <span className={`text-[12.5px] font-semibold ${isInstaller ? "text-orange-900" : "text-purple-900"}`}>
+                ยอดรวมรายการ
+              </span>
+              <span className={`text-[16px] font-bold font-mono ${isInstaller ? "text-orange-900" : "text-purple-900"}`}>
+                {mileageTotal > 0 ? `฿${fmt(mileageTotal)}` : "฿0.00"}
+              </span>
+            </div>
+            <p className="text-[10.5px] text-stone-500">
+              * ยอดรวม = ค่าน้ำมัน + ค่าทางด่วน{isInstaller ? " + ค่าข้าว" : ""} + ค่าอื่น ๆ
+            </p>
           </div>
         )}
 
@@ -999,13 +994,16 @@ function AddView({ onAdd }) {
           </div>
         )}
 
-        <Field label="ชื่อรายการ" error={errors.description}>
+        <Field
+          label={isTeamCategory ? "หน้างาน / รายละเอียดงาน" : "ชื่อรายการ"}
+          error={errors.description}
+        >
           <input
             value={form.description}
             onChange={e => update("description", e.target.value)}
             placeholder={
-              isInstaller ? "เช่น งานติดตั้งบ้านลูกค้า A" :
-              isMedia ? "เช่น ถ่ายงานลูกค้า A" :
+              isInstaller ? "เช่น ติดตั้งบ้านลูกค้า A, ซ่อมหน้าร้าน B" :
+              isMedia ? "เช่น ถ่ายงานลูกค้า A ที่นนทบุรี" :
               isOT ? "เช่น OT วันเสาร์" :
               "เช่น ซื้อนอต, จ้างรถส่งของ"
             }
@@ -1344,18 +1342,36 @@ function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
           </p>
           {tx.note && <p className="text-[11.5px] text-stone-500 mt-0.5">{tx.note}</p>}
 
-          {/* รายละเอียดทีม (ช่างติดตั้ง / ทีมมีเดีย) */}
-          {(isInstaller || isMedia) && subType && (
-            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] flex-wrap">
-              <span className={`px-1.5 py-0.5 rounded font-medium ${isInstaller ? "bg-orange-50 text-orange-700" : "bg-purple-50 text-purple-700"}`}>
-                {subType}
-              </span>
-              {tx.mileage && (
-                <span className="text-stone-500 font-mono">
-                  {tx.mileage.distance.toFixed(1)} กม. × ฿{tx.mileage.rate}
-                  {tx.mileage.tollFee > 0 && ` + ค่าด่วน ฿${fmt(tx.mileage.tollFee)}`}
-                  {tx.mileage.otherCost > 0 && ` + อื่นๆ ฿${fmt(tx.mileage.otherCost)}`}
+          {/* รายละเอียดทีม (ช่างติดตั้ง / ทีมมีเดีย) — แสดง breakdown จาก mileage */}
+          {(isInstaller || isMedia) && (tx.mileage || subType) && (
+            <div className="mt-1.5 flex items-center gap-1 text-[11px] flex-wrap">
+              {/* legacy subType (สำหรับข้อมูลเก่า) */}
+              {!tx.mileage && subType && (
+                <span className={`px-1.5 py-0.5 rounded font-medium ${isInstaller ? "bg-orange-50 text-orange-700" : "bg-purple-50 text-purple-700"}`}>
+                  {subType}
                 </span>
+              )}
+              {/* schema ใหม่: breakdown จาก mileage */}
+              {tx.mileage && (
+                <>
+                  {tx.mileage.distance > 0 && (
+                    <span className="text-stone-500 font-mono">
+                      {tx.mileage.distance.toFixed(1)} กม. × ฿{tx.mileage.rate}
+                    </span>
+                  )}
+                  {tx.mileage.fuelCost > 0 && (
+                    <span className="bg-stone-50 text-stone-600 px-1.5 py-0.5 rounded font-mono">น้ำมัน ฿{fmt(tx.mileage.fuelCost)}</span>
+                  )}
+                  {tx.mileage.tollFee > 0 && (
+                    <span className="bg-stone-50 text-stone-600 px-1.5 py-0.5 rounded font-mono">ด่วน ฿{fmt(tx.mileage.tollFee)}</span>
+                  )}
+                  {tx.mileage.foodCost > 0 && (
+                    <span className="bg-stone-50 text-stone-600 px-1.5 py-0.5 rounded font-mono">ข้าว ฿{fmt(tx.mileage.foodCost)}</span>
+                  )}
+                  {tx.mileage.otherCost > 0 && (
+                    <span className="bg-stone-50 text-stone-600 px-1.5 py-0.5 rounded font-mono">อื่นๆ ฿{fmt(tx.mileage.otherCost)}</span>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -2075,15 +2091,28 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
         ctx.font = `400 16px ${FONT}`;
         let catLine = t.category;
         const txTeam = t.team || t.mediaTeam || '';
-        const txSubType = t.subType || t.mediaSubType || '';
+        const txSubType = t.subType || t.mediaSubType || '';  // legacy fallback
         if (isMediaItem) {
           const teamLabel = txTeam ? `🎥 ทีมมีเดีย · ${txTeam}` : '🎥 ทีมมีเดีย';
-          catLine = `${teamLabel}${txSubType ? ` · ${txSubType}` : ''}`;
+          // ถ้ามี mileage: แสดงสรุปย่อ ถ้าไม่มี: ใช้ legacy subType
+          let extra = '';
+          if (t.mileage && t.mileage.distance > 0) {
+            extra = ` · ${t.mileage.distance.toFixed(0)} กม.`;
+          } else if (txSubType) {
+            extra = ` · ${txSubType}`;
+          }
+          catLine = `${teamLabel}${extra}`;
           ctx.fillStyle = '#7c3aed';
           ctx.font = `600 16px ${FONT}`;
         } else if (isInstallerItem) {
           const teamLabel = txTeam ? `🔧 ช่างติดตั้ง · ${txTeam}` : '🔧 ช่างติดตั้ง';
-          catLine = `${teamLabel}${txSubType ? ` · ${txSubType}` : ''}`;
+          let extra = '';
+          if (t.mileage && t.mileage.distance > 0) {
+            extra = ` · ${t.mileage.distance.toFixed(0)} กม.`;
+          } else if (txSubType) {
+            extra = ` · ${txSubType}`;
+          }
+          catLine = `${teamLabel}${extra}`;
           ctx.fillStyle = '#ea580c';
           ctx.font = `600 16px ${FONT}`;
         } else if (isOTItem) {

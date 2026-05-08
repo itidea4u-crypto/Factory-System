@@ -232,7 +232,7 @@ function computeSummary(transactions, filterFn) {
   };
 }
 
-// สรุปยอดทีมมีเดีย (เฉพาะที่ไม่ใช่พี่ X จ่ายเอง)
+// สรุปยอดทีมมีเดีย (เฉพาะที่ไม่ใช่พี่ X โอนเอง)
 // computeTeamSummary — แยกยอดตามทีม / OT
 //   media     = หมวดทีมมีเดีย (ไม่นับพี่ X)
 //   installer = หมวดช่างติดตั้ง (ไม่นับพี่ X)
@@ -1033,7 +1033,7 @@ function AddView({ onAdd }) {
         {isXPayment && (
           <div className="bg-stone-100 border border-stone-200 rounded-lg px-3 py-2.5 text-[12px] text-stone-700 flex items-start gap-2">
             <AlertCircle size={14} className="flex-shrink-0 mt-0.5 text-stone-500" />
-            <span>รายการนี้พี่ X จ่ายเอง <b>ไม่นับรวมในยอดเบิก</b> — จะแสดงแยกในสรุป</span>
+            <span>รายการนี้พี่ X โอนเอง <b>ไม่นับรวมในยอดเบิก</b> — จะแสดงแยกในสรุป</span>
           </div>
         )}
 
@@ -1239,7 +1239,7 @@ function HistoryView({ transactions, onCancel, onViewAtts }) {
           <p className="text-base font-semibold">{fmtInt(filtered.length)} รายการ</p>
         </div>
         <div className="text-right">
-          <p className="text-[11px] opacity-90 font-medium">ยอดเบิก (ไม่รวมพี่ X / ยกเลิก)</p>
+          <p className="text-[11px] opacity-90 font-medium">ยอดเบิก (ไม่รวมพี่ X โอนเอง / ยกเลิก)</p>
           <p className="text-lg font-bold">฿{fmt(activeTotal)}</p>
         </div>
       </div>
@@ -1316,7 +1316,7 @@ function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
               </span>
             )}
             {isX && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-700 font-medium">พี่ X จ่ายเอง</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-700 font-medium">พี่ X โอนเอง</span>
             )}
             {isCancelled && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium flex items-center gap-0.5">
@@ -1473,7 +1473,10 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
   const byCategory = useMemo(() => {
     const map = {};
     summary.yItems.forEach(t => { map[t.category] = (map[t.category] || 0) + t.amount; });
-    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .filter(c => c.value > 0)
+      .sort((a, b) => b.value - a.value);
   }, [summary.yItems]);
 
   const dateLabel = dateMode === "day"
@@ -1551,7 +1554,7 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
         <p className="text-5xl font-bold mt-1 tracking-tight">฿{fmt(summary.total)}</p>
         <p className="text-[12px] opacity-80 mt-2">
           {fmtInt(summary.yCount)} รายการ
-          {summary.xCount > 0 && <span className="opacity-70"> · ไม่รวมพี่ X</span>}
+          {summary.xCount > 0 && <span className="opacity-70"> · ไม่รวมพี่ X โอนเอง</span>}
         </p>
       </div>
 
@@ -1828,13 +1831,13 @@ async function renderOverviewImage(summary, dateLabel, subtitle, extra) {
 
   // เตรียมข้อมูล
   const breakdown = (extra && extra.breakdown) || { cash: 0, transfer: 0 };
-  const byCategory = (extra && extra.byCategory) || [];
+  const byCategory = ((extra && extra.byCategory) || []).filter(c => c.value > 0);
 
   // คำนวณความสูง
   const headerH = 250;
   const totalH = 280;
   const shiftH = 130;
-  const xH = summary.xTotal > 0 ? 100 : 0;
+  const xH = summary.xTotal > 0 ? 130 : 0;
   const paymentLines = (breakdown.cash > 0 ? 1 : 0) + (breakdown.transfer > 0 ? 1 : 0);
   const paymentH = paymentLines > 0 ? (90 + paymentLines * 38 + 50) : 0;
   const categoryH = byCategory.length > 0 ? (90 + byCategory.length * 38 + 30) : 0;
@@ -1890,7 +1893,7 @@ async function renderOverviewImage(summary, dateLabel, subtitle, extra) {
   ctx.fillStyle = '#6ee7b7';
   ctx.font = `400 18px ${FONT}`;
   ctx.fillText(
-    `${fmtInt(summary.yCount)} รายการ${summary.xCount > 0 ? ' · ไม่รวมพี่ X จ่ายเอง' : ''}`,
+    `${fmtInt(summary.yCount)} รายการ${summary.xCount > 0 ? ' · ไม่รวมพี่ X โอนเอง' : ''}`,
     padding + 30, y + 215
   );
   y += 280;
@@ -1945,7 +1948,13 @@ async function renderOverviewImage(summary, dateLabel, subtitle, extra) {
     const xW = ctx.measureText(xText).width;
     ctx.fillText(xText, W - padding - 22 - xW, y + 50);
 
-    y += 100;
+    y += 90;
+
+    // หมายเหตุเล็ก ๆ ใต้กล่องพี่ X
+    ctx.fillStyle = '#a8a29e';
+    ctx.font = `400 15px ${FONT}`;
+    ctx.fillText('* พี่ X โอนเอง แสดงเพื่อบันทึกข้อมูล แต่ไม่รวมในยอดเบิกรวมสุทธิ', padding + 4, y + 12);
+    y += 30;
   }
 
   // ═══ สรุปตามวิธีจ่าย ═══
@@ -2087,32 +2096,28 @@ async function renderDetailImages(summary, allItems, dateLabel, subtitle) {
   // คำนวณความสูง
   const HEADER_H_TOP = 230;       // page header (top of every page)
   const FOOTER_H = 100;            // page footer
-  const GROUP_H = 60;              // กลุ่ม row header
-  const MAX_PAGE_H = 1800;         // ความสูงสูงสุดต่อหน้า
+  const GROUP_H = 78;              // กลุ่ม row header (เพิ่มจาก 60 → 78 เพื่อบรรทัดรองที่แยกออก)
+  const ITEMS_PER_PAGE = 12;       // จำนวนรายการสูงสุดต่อหน้า
 
-  // แบ่งหน้า — greedy fill
+  // แบ่งหน้า — fixed item count
   const pages = [];
   let currentPage = [];
-  let currentH = HEADER_H_TOP + FOOTER_H;
+  let itemsOnPage = 0;
 
   for (const node of seq) {
-    const nodeH = node.type === 'header' ? GROUP_H : itemHeight(node.t);
-    if (currentH + nodeH > MAX_PAGE_H && currentPage.length > 0) {
+    if (node.type === 'item' && itemsOnPage >= ITEMS_PER_PAGE) {
+      // หน้าเต็ม → push หน้าเดิม + เริ่มหน้าใหม่
       pages.push(currentPage);
       currentPage = [];
-      currentH = HEADER_H_TOP + FOOTER_H;
-      // ถ้าตัดกลางกลุ่ม ให้ใส่ continuation header ในหน้าใหม่
-      if (node.type !== 'header') {
-        // หา group header ล่าสุดของ item นี้ → ถ้ามี ใส่ "(ต่อ)"
-        const lastHeader = [...seq].slice(0, seq.indexOf(node)).reverse().find(n => n.type === 'header');
-        if (lastHeader) {
-          currentPage.push({ ...lastHeader, label: lastHeader.label + ' (ต่อ)', isContinuation: true });
-          currentH += GROUP_H;
-        }
+      itemsOnPage = 0;
+      // ตัดกลางกลุ่ม → ใส่ continuation header
+      const lastHeader = [...seq].slice(0, seq.indexOf(node)).reverse().find(n => n.type === 'header');
+      if (lastHeader) {
+        currentPage.push({ ...lastHeader, label: lastHeader.label + ' (ต่อ)', isContinuation: true });
       }
     }
     currentPage.push(node);
-    currentH += nodeH;
+    if (node.type === 'item') itemsOnPage++;
   }
   if (currentPage.length > 0) pages.push(currentPage);
 
@@ -2179,19 +2184,17 @@ async function renderDetailImages(summary, allItems, dateLabel, subtitle) {
     // ═══ ITEMS ═══
     pageNodes.forEach(node => {
       if (node.type === 'header') {
-        // group header
+        // group header — title แล้วบรรทัดรองแสดงจำนวนรายการ
         ctx.fillStyle = node.color;
-        ctx.fillRect(padding, y + 8, 5, 30);
+        ctx.fillRect(padding, y + 12, 5, 50);
 
         ctx.fillStyle = '#1c1917';
-        ctx.font = `700 24px ${FONT}`;
-        ctx.fillText(node.label, padding + 18, y + 30);
+        ctx.font = `700 26px ${FONT}`;
+        ctx.fillText(node.label, padding + 18, y + 32);
 
         ctx.fillStyle = '#a8a29e';
         ctx.font = `400 16px ${FONT}`;
-        const ct = `(${node.count} รายการ)`;
-        const labelW = ctx.measureText(node.label).width;
-        ctx.fillText(ct, padding + 18 + labelW + 10, y + 30);
+        ctx.fillText(`${node.count} รายการ`, padding + 18, y + 58);
 
         y += GROUP_H;
       } else {

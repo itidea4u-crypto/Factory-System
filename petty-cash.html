@@ -2,7 +2,10 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#047857" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>ระบบเบิกเงินสดย่อย — Factory System</title>
 
   <!-- Tailwind CSS via CDN (play.tailwindcss.com runtime) -->
@@ -496,29 +499,62 @@ function PettyCashSystem() {
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap');
         * { font-family: 'IBM Plex Sans Thai', system-ui, -apple-system, sans-serif; }
         input, select, textarea, button { font-family: inherit; }
+
+        /* iOS: ป้องกัน auto-zoom เมื่อ focus input (ต้อง font-size >= 16px) */
+        input[type="text"], input[type="number"], input[type="date"],
+        input[type="email"], input[type="tel"], select, textarea {
+          font-size: 16px !important;
+        }
+
+        /* iOS: ลบ default style ของ button/input */
+        button, input, select, textarea {
+          -webkit-appearance: none;
+          appearance: none;
+        }
+        select { -webkit-appearance: menulist; appearance: menulist; }
+        input[type="date"] { min-height: 44px; }
+
+        /* iOS Safe area inset */
+        .pb-safe { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+        .pt-safe { padding-top: env(safe-area-inset-top); }
+
+        /* ป้องกัน body scroll bounce + tap highlight */
+        body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+
+        /* iOS: ทำให้ select dropdown แสดงลูกศรเอง */
+        select {
+          background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
+          background-repeat: no-repeat;
+          background-position: right 12px center;
+          background-size: 16px;
+          padding-right: 36px !important;
+          -webkit-appearance: none;
+          appearance: none;
+        }
       `}</style>
 
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-4 py-3.5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-800 text-white grid place-items-center shadow-sm">
-              <Wallet size={20} strokeWidth={2.2} />
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-20 pt-safe">
+        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3.5">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-800 text-white grid place-items-center shadow-sm flex-shrink-0">
+              <Wallet size={16} strokeWidth={2.2} className="sm:hidden" />
+              <Wallet size={20} strokeWidth={2.2} className="hidden sm:block" />
             </div>
-            <div>
-              <h1 className="text-base font-semibold text-stone-900 leading-tight">ระบบเบิกเงินสดย่อย</h1>
-              <p className="text-[11px] text-stone-500">บันทึก · ดูย้อนหลัง · สร้างรูปสรุปส่งพี่ X</p>
+            <div className="min-w-0">
+              <h1 className="text-[15px] sm:text-base font-semibold text-stone-900 leading-tight truncate">ระบบเบิกเงินสดย่อย</h1>
+              <p className="hidden sm:block text-[11px] text-stone-500">บันทึก · ดูย้อนหลัง · สร้างรูปสรุปส่งพี่ X</p>
             </div>
           </div>
 
-          <nav className="flex gap-1 bg-stone-100 p-1 rounded-lg">
-            <TabBtn icon={<PlusCircle size={14} />} label="เพิ่มรายการ" active={tab === "add"} onClick={() => setTab("add")} />
-            <TabBtn icon={<History size={14} />} label="ประวัติ" active={tab === "history"} onClick={() => setTab("history")} />
-            <TabBtn icon={<BarChart3 size={14} />} label="สรุป" active={tab === "summary"} onClick={() => setTab("summary")} />
+          <nav className="grid grid-cols-3 gap-1 bg-stone-100 p-1 rounded-lg">
+            <TabBtn icon={<PlusCircle size={13} />} label="เพิ่มรายการ" active={tab === "add"} onClick={() => setTab("add")} />
+            <TabBtn icon={<History size={13} />} label="ประวัติ" active={tab === "history"} onClick={() => setTab("history")} />
+            <TabBtn icon={<BarChart3 size={13} />} label="สรุป" active={tab === "summary"} onClick={() => setTab("summary")} />
           </nav>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-5 pb-24">
+      <main className="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-5 pb-safe">
         {loading ? (
           <div className="text-center py-20 text-stone-500 text-sm">กำลังโหลดข้อมูล...</div>
         ) : (
@@ -537,9 +573,12 @@ function PettyCashSystem() {
       </main>
 
       {toast && (
-        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium z-50 flex items-center gap-2 ${
-          toast.type === "error" ? "bg-red-600 text-white" : "bg-stone-900 text-white"
-        }`}>
+        <div
+          className={`fixed left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium z-50 flex items-center gap-2 ${
+            toast.type === "error" ? "bg-red-600 text-white" : "bg-stone-900 text-white"
+          }`}
+          style={{ bottom: "calc(20px + env(safe-area-inset-bottom))" }}
+        >
           {toast.type === "error" ? <AlertCircle size={16} /> : <Check size={16} />}
           {toast.msg}
         </div>
@@ -563,12 +602,12 @@ function TabBtn({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex-1 flex items-center justify-center gap-1 py-2 px-1 rounded-md text-[12.5px] font-medium transition ${
+      className={`flex items-center justify-center gap-1.5 py-2.5 px-1 rounded-md text-[13px] font-medium transition whitespace-nowrap ${
         active ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600 hover:text-stone-900"
       }`}
     >
-      {icon}
-      <span>{label}</span>
+      <span className="flex-shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -776,45 +815,45 @@ function AddView({ onAdd }) {
   const isXPayment = form.paymentMethod === X_PAYMENT;
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 p-5 max-w-2xl mx-auto shadow-sm">
-      <div className="flex items-start gap-3 mb-5">
+    <div className="bg-white rounded-2xl border border-stone-200 p-3.5 sm:p-5 max-w-2xl mx-auto shadow-sm">
+      <div className="flex items-start gap-3 mb-4 sm:mb-5">
         <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 grid place-items-center flex-shrink-0">
           <PlusCircle size={18} />
         </div>
-        <div>
+        <div className="min-w-0">
           <h2 className="text-base font-semibold text-stone-900">เพิ่มรายการเบิก</h2>
           <p className="text-[12px] text-stone-500 mt-0.5 flex items-center gap-1">
-            <Lock size={11} />
-            เมื่อบันทึกแล้วล็อกข้อมูล — ถ้าผิดให้ยกเลิกแล้วบันทึกใหม่
+            <Lock size={11} className="flex-shrink-0" />
+            <span className="truncate">เมื่อบันทึกแล้วล็อก — ถ้าผิดให้ยกเลิกแล้วบันทึกใหม่</span>
           </p>
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3.5 sm:space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <Field label="วันที่" error={errors.date}>
             <input
               type="date"
               value={form.date}
               onChange={e => update("date", e.target.value)}
-              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              className="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </Field>
           <Field label="รอบเบิก">
-            <div className="grid grid-cols-2 gap-1 bg-stone-100 p-1 rounded-lg">
+            <div className="flex gap-1 bg-stone-100 p-1 rounded-lg">
               {SHIFTS.map(s => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => update("shift", s)}
-                  className={`py-1.5 rounded-md text-sm font-medium flex items-center justify-center gap-1 transition ${
+                  className={`flex-1 py-2 px-1 rounded-md text-[13px] font-medium flex items-center justify-center gap-1 whitespace-nowrap transition ${
                     form.shift === s
                       ? s === "เช้า" ? "bg-amber-100 text-amber-800 shadow-sm" : "bg-indigo-100 text-indigo-800 shadow-sm"
                       : "text-stone-600"
                   }`}
                 >
-                  {s === "เช้า" ? <Sun size={13} /> : <Moon size={13} />}
-                  {s}
+                  {s === "เช้า" ? <Sun size={13} className="flex-shrink-0" /> : <Moon size={13} className="flex-shrink-0" />}
+                  <span>{s}</span>
                 </button>
               ))}
             </div>
@@ -825,7 +864,7 @@ function AddView({ onAdd }) {
           <select
             value={form.category}
             onChange={e => update("category", e.target.value)}
-            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full px-3 py-2.5 border border-stone-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             {CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
@@ -1093,9 +1132,9 @@ function AddView({ onAdd }) {
         <button
           onClick={submit}
           disabled={submitting}
-          className="w-full bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white py-3 rounded-lg font-semibold text-sm disabled:opacity-60 transition flex items-center justify-center gap-2"
+          className="w-full bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white py-3.5 rounded-xl font-semibold text-[15px] disabled:opacity-60 transition flex items-center justify-center gap-2 min-h-[50px]"
         >
-          <Check size={16} />
+          <Check size={18} />
           {submitting ? "กำลังบันทึก..." : "บันทึกรายการ"}
         </button>
       </div>
@@ -1548,7 +1587,7 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
       </div>
 
       {/* ─── ยอดเบิกรวมสุทธิ — ตัวใหญ่สุด ─── */}
-      <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-2xl p-6 shadow-md">
+      <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-2xl p-5 sm:p-6 shadow-md">
         <p className="text-[11px] opacity-80 font-medium uppercase tracking-wide">{dateLabel}</p>
         <p className="text-[12px] opacity-90 mt-3">ยอดเบิกรวมสุทธิ</p>
         <p className="text-5xl font-bold mt-1 tracking-tight">฿{fmt(summary.total)}</p>
@@ -1595,9 +1634,9 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
       <button
         onClick={handleDownloadAll}
         disabled={summary.count === 0 || generating}
-        className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 shadow-sm"
+        className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white py-3.5 rounded-2xl font-semibold text-[15px] flex items-center justify-center gap-2 shadow-sm min-h-[50px]"
       >
-        <Download size={16} />
+        <Download size={18} />
         {generating ? "กำลังสร้างรูป..." : "ดาวน์โหลดรูปสรุป"}
       </button>
       <p className="text-[10.5px] text-stone-400 text-center -mt-1">
@@ -2382,16 +2421,20 @@ function ImagePreviewModal({ items, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-4 max-w-md w-full max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center sm:p-3" onClick={onClose}>
+      <div
+        className="bg-white rounded-t-2xl sm:rounded-2xl p-4 max-w-md w-full max-h-[92vh] flex flex-col"
+        style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}
+        onClick={e => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-3 flex-shrink-0">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-base font-semibold text-stone-900">รูปสรุปส่งพี่ X</h3>
             <p className="text-[11px] text-stone-500">
               {list.length === 1 ? "1 รูป" : `${list.length} รูป`} · บันทึกแล้วส่งทาง LINE ได้เลย
             </p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 grid place-items-center rounded-full hover:bg-stone-100">
+          <button onClick={onClose} className="w-9 h-9 grid place-items-center rounded-full hover:bg-stone-100 flex-shrink-0">
             <X size={18} />
           </button>
         </div>
@@ -2404,13 +2447,13 @@ function ImagePreviewModal({ items, onClose }) {
             list.map((item, i) => (
               <div key={i} className="bg-white rounded-lg p-2.5 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11.5px] font-semibold text-stone-700">{item.label}</span>
+                  <span className="text-[12px] font-semibold text-stone-700">{item.label}</span>
                   <button
                     onClick={() => downloadOne(i)}
                     disabled={!urls[i]}
-                    className="text-[11px] px-2 py-0.5 rounded bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-700 font-medium flex items-center gap-1"
+                    className="text-[12px] px-2.5 py-1 rounded bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-700 font-medium flex items-center gap-1"
                   >
-                    <Download size={11} />บันทึก
+                    <Download size={12} />บันทึก
                   </button>
                 </div>
                 {urls[i] ? (
@@ -2427,12 +2470,12 @@ function ImagePreviewModal({ items, onClose }) {
         <button
           onClick={downloadAll}
           disabled={urls.length !== list.length || list.length === 0}
-          className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2"
+          className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3.5 rounded-xl font-semibold text-[15px] flex items-center justify-center gap-2 min-h-[50px]"
         >
           {downloadedAll ? (
-            <><Check size={16} />ดาวน์โหลดเรียบร้อย</>
+            <><Check size={18} />ดาวน์โหลดเรียบร้อย</>
           ) : (
-            <><Download size={16} />ดาวน์โหลดทั้งหมด ({list.length} รูป)</>
+            <><Download size={18} />ดาวน์โหลดทั้งหมด ({list.length} รูป)</>
           )}
         </button>
         <p className="text-[10.5px] text-stone-400 text-center mt-2">
@@ -2488,7 +2531,7 @@ function AttachmentViewer({ attachments, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex flex-col" onClick={onClose}>
-      <div className="bg-stone-900 text-white px-4 py-3 flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+      <div className="bg-stone-900 text-white px-4 py-3 pt-safe flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} className="w-8 h-8 grid place-items-center rounded-full hover:bg-stone-800">
           <X size={18} />
         </button>

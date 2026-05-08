@@ -1432,9 +1432,9 @@ function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
   );
 }
 
-// ─── หน้าสรุป — Dashboard read-only + ปุ่มดาวน์โหลดรูปสรุป ───────
-// Flow: พี่หญิงเลือกวันที่ → เช็กยอด → กดดาวน์โหลด → ส่ง LINE
-//        พี่ X เปิดดูเองได้ (read-only เต็ม ไม่มีฟอร์มหรือปุ่มแก้ไข)
+// ─── หน้าสรุป — 2 ระดับ ──────────────────────────────────────────
+//   ระดับหลัก:    ยอดสุทธิตัวใหญ่ + เช้า/เย็น/พี่X + จำนวนรายการ + รายการ
+//   ระดับรอง:     สรุปหมวด / วิธีจ่าย / ทีม — เก็บไว้ใน expandable section
 function SummaryView({ transactions, onShowImage, onViewAtts }) {
   const [mode, setMode] = useState("day");
   const [date, setDate] = useState(todayStr());
@@ -1444,8 +1444,8 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [to, setTo] = useState(todayStr());
+  const [showDetails, setShowDetails] = useState(false);
 
-  // คำนวณ summary ตามตัวกรอง
   const summary = useMemo(() => {
     if (mode === "day") return computeSummary(transactions, t => t.date === date);
     return computeSummary(transactions, t => t.date >= from && t.date <= to);
@@ -1453,7 +1453,6 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
 
   const teamSum = useMemo(() => computeTeamSummary(summary.yItems), [summary]);
 
-  // จัดรายการตามรอบ
   const morningItems = useMemo(() => summary.items
     .filter(t => t.shift === "เช้า" && t.paymentMethod !== X_PAYMENT)
     .sort((a, b) => a.createdAt - b.createdAt), [summary.items]);
@@ -1464,7 +1463,6 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
     .filter(t => t.paymentMethod === X_PAYMENT)
     .sort((a, b) => a.createdAt - b.createdAt), [summary.items]);
 
-  // breakdown วิธีจ่าย
   const breakdown = useMemo(() => {
     let cash = 0, transfer = 0;
     summary.yItems.forEach(t => {
@@ -1474,13 +1472,11 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
     return { cash, transfer };
   }, [summary]);
 
-  // breakdown หมวด
   const byCategory = useMemo(() => {
     const map = {};
     summary.yItems.forEach(t => { map[t.category] = (map[t.category] || 0) + t.amount; });
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [summary.yItems]);
-  const CAT_COLORS = ["#047857", "#0d9488", "#d97706", "#b45309", "#7c2d12", "#831843", "#3730a3", "#475569"];
 
   const dateLabel = mode === "day"
     ? formatThaiDate(date)
@@ -1492,14 +1488,13 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
     onShowImage(canvas, `สรุปยอด_${fileLabel}.png`);
   };
 
+  const hasDetails =
+    breakdown.cash > 0 || breakdown.transfer > 0 ||
+    byCategory.length > 0 ||
+    teamSum.installerCount > 0 || teamSum.mediaCount > 0 || teamSum.otCount > 0;
+
   return (
     <div className="space-y-3">
-      {/* ─── Banner read-only ─── */}
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 text-[12px] text-emerald-900 flex items-start gap-2">
-        <BarChart3 size={14} className="mt-0.5 flex-shrink-0" />
-        <span>เลือกวันที่หรือช่วงเวลา · เช็กยอด · กดดาวน์โหลดรูปสรุปเพื่อส่งให้พี่ X ทาง LINE</span>
-      </div>
-
       {/* ─── Filter ─── */}
       <div className="bg-white rounded-2xl border border-stone-200 p-3.5 shadow-sm">
         <div className="grid grid-cols-2 gap-1 bg-stone-100 p-1 rounded-lg mb-3">
@@ -1517,151 +1512,84 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
           </button>
         </div>
         {mode === "day" ? (
-          <div>
-            <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">วันที่</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
-          </div>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm" />
         ) : (
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ตั้งแต่</label>
-              <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-                className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
-            </div>
-            <div>
-              <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ถึง</label>
-              <input type="date" value={to} onChange={e => setTo(e.target.value)}
-                className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
-            </div>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+              className="w-full px-2 py-2 border border-stone-300 rounded-lg text-[13px]" />
+            <input type="date" value={to} onChange={e => setTo(e.target.value)}
+              className="w-full px-2 py-2 border border-stone-300 rounded-lg text-[13px]" />
           </div>
         )}
       </div>
 
-      {/* ─── การ์ดยอดเบิกรวมสุทธิ — เด่นที่สุด ─── */}
-      <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-2xl p-5 shadow-md">
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* PRIMARY (เห็นทันทีใน 5 วิ)                              */}
+      {/* ═══════════════════════════════════════════════════════ */}
+
+      {/* ยอดเบิกรวมสุทธิ — ตัวใหญ่สุด */}
+      <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-2xl p-6 shadow-md">
         <p className="text-[11px] opacity-80 font-medium uppercase tracking-wide">{dateLabel}</p>
         <p className="text-[12px] opacity-90 mt-3">ยอดเบิกรวมสุทธิ</p>
-        <p className="text-4xl font-bold mt-1">฿{fmt(summary.total)}</p>
-        <p className="text-[11px] opacity-80 mt-1.5">{fmtInt(summary.yCount)} รายการ · ไม่รวมพี่ X จ่ายเอง</p>
+        <p className="text-5xl font-bold mt-1 tracking-tight">฿{fmt(summary.total)}</p>
+        <p className="text-[12px] opacity-80 mt-2">
+          {fmtInt(summary.yCount)} รายการ
+          {summary.xCount > 0 && <span className="opacity-70"> · ไม่รวมพี่ X</span>}
+        </p>
       </div>
 
-      {/* ─── เช้า / เย็น ─── */}
+      {/* เช้า / เย็น (สี neutral ไม่แย่งความเด่น) */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
-          <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1"><Sun size={12} />รวมรอบเช้า</p>
-          <p className="text-lg font-bold text-amber-900 mt-0.5">฿{fmt(summary.morning)}</p>
-          <p className="text-[10px] text-amber-700 mt-0.5">{fmtInt(morningItems.length)} รายการ</p>
+        <div className="bg-white border border-stone-200 rounded-xl p-3.5">
+          <p className="text-[11px] text-stone-500 font-medium flex items-center gap-1"><Sun size={12} className="text-amber-600" />เบิกเช้า</p>
+          <p className="text-xl font-bold text-stone-900 mt-0.5">฿{fmt(summary.morning)}</p>
+          <p className="text-[10.5px] text-stone-400 mt-0.5">{fmtInt(morningItems.length)} รายการ</p>
         </div>
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3.5">
-          <p className="text-[11px] text-indigo-700 font-medium flex items-center gap-1"><Moon size={12} />รวมรอบเย็น</p>
-          <p className="text-lg font-bold text-indigo-900 mt-0.5">฿{fmt(summary.evening)}</p>
-          <p className="text-[10px] text-indigo-700 mt-0.5">{fmtInt(eveningItems.length)} รายการ</p>
+        <div className="bg-white border border-stone-200 rounded-xl p-3.5">
+          <p className="text-[11px] text-stone-500 font-medium flex items-center gap-1"><Moon size={12} className="text-indigo-600" />เบิกเย็น</p>
+          <p className="text-xl font-bold text-stone-900 mt-0.5">฿{fmt(summary.evening)}</p>
+          <p className="text-[10.5px] text-stone-400 mt-0.5">{fmtInt(eveningItems.length)} รายการ</p>
         </div>
       </div>
 
-      {/* ─── พี่ X โอนเอง (ถ้ามี) ─── */}
+      {/* พี่ X โอนเอง (เฉพาะถ้ามี) */}
       {summary.xTotal > 0 && (
-        <div className="bg-stone-100 border border-stone-200 rounded-xl p-3.5 flex items-center justify-between">
+        <div className="bg-stone-100 border border-stone-200 rounded-xl px-3.5 py-3 flex items-center justify-between">
           <div>
             <p className="text-[11.5px] text-stone-700 font-medium flex items-center gap-1">
               <User size={12} />พี่ X โอนเอง
             </p>
             <p className="text-[10.5px] text-stone-500 mt-0.5">
-              {fmtInt(summary.xCount)} รายการ · ไม่รวมในยอดเบิกสุทธิ
+              {fmtInt(summary.xCount)} รายการ · ไม่รวมในยอดสุทธิ
             </p>
           </div>
           <p className="text-base font-bold text-stone-700">฿{fmt(summary.xTotal)}</p>
         </div>
       )}
 
-      {/* ─── ปุ่มดาวน์โหลดรูปสรุป ─── */}
+      {/* ปุ่มดาวน์โหลด — รอง (outline ไม่เด่น) */}
       <button
         onClick={handleGenerateImage}
         disabled={summary.count === 0}
-        className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 shadow-sm"
+        className="w-full bg-white hover:bg-stone-50 disabled:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400 border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl font-medium text-[13px] flex items-center justify-center gap-2 transition"
       >
-        <Download size={16} />ดาวน์โหลดรูปสรุปส่งพี่ X
+        <Download size={14} />ดาวน์โหลดรูปสรุป
       </button>
 
-      {/* ─── สรุปตามวิธีจ่าย ─── */}
-      {(breakdown.cash > 0 || breakdown.transfer > 0) && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
-          <h3 className="text-[12px] font-semibold text-stone-600 mb-2.5 uppercase tracking-wide">สรุปตามวิธีจ่าย</h3>
-          <div className="space-y-1.5">
-            {breakdown.cash > 0 && (
-              <div className="flex justify-between text-[13px] py-1">
-                <span className="text-stone-700">จ่ายเงินสด</span>
-                <span className="font-semibold text-stone-900">฿{fmt(breakdown.cash)}</span>
-              </div>
-            )}
-            {breakdown.transfer > 0 && (
-              <div className="flex justify-between text-[13px] py-1">
-                <span className="text-stone-700">โอน/สแกน</span>
-                <span className="font-semibold text-stone-900">฿{fmt(breakdown.transfer)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-[13px] py-1.5 mt-1 border-t border-stone-200 font-semibold">
-              <span className="text-stone-900">รวมสุทธิ</span>
-              <span className="text-emerald-700">฿{fmt(summary.total)}</span>
-            </div>
-            {summary.xTotal > 0 && (
-              <div className="flex justify-between text-[12px] py-1 text-stone-500">
-                <span>พี่ X โอนเอง <span className="text-stone-400">(แยก)</span></span>
-                <span>฿{fmt(summary.xTotal)}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ─── สรุปตามหมวด ─── */}
-      {byCategory.length > 0 && (
-        <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
-          <h3 className="text-[12px] font-semibold text-stone-600 mb-2.5 uppercase tracking-wide">สรุปตามหมวด</h3>
-          <div className="space-y-2">
-            {byCategory.map((c, i) => {
-              const pct = summary.total > 0 ? (c.value / summary.total) * 100 : 0;
-              return (
-                <div key={c.name}>
-                  <div className="flex justify-between text-[12.5px] mb-1">
-                    <span className="text-stone-700">{c.name}</span>
-                    <span className="font-medium text-stone-900">
-                      ฿{fmt(c.value)} <span className="text-stone-400">({pct.toFixed(1)}%)</span>
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all"
-                      style={{ width: `${pct}%`, backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ─── การ์ดสรุปทีม (ถ้ามี) ─── */}
-      {(teamSum.installerCount > 0 || teamSum.mediaCount > 0 || teamSum.otCount > 0) && (
-        <div className="space-y-2">
-          {teamSum.installerCount > 0 && <TeamBreakdownCard ms={teamSum} kind="installer" />}
-          {teamSum.mediaCount > 0 && <TeamBreakdownCard ms={teamSum} kind="media" />}
-          {teamSum.otCount > 0 && <OTSummaryCard ms={teamSum} />}
-        </div>
-      )}
-
-      {/* ─── รายการแยกรอบเช้า / เย็น (read-only) ─── */}
+      {/* ─── รายการแยกรอบ — ส่วนหลัก ─── */}
       {summary.count === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center">
           <Receipt size={36} className="mx-auto text-stone-300 mb-2" />
           <p className="text-sm text-stone-500">ไม่มีรายการในช่วงที่เลือก</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 pt-1">
           {morningItems.length > 0 && (
             <div>
-              <h3 className="text-[12px] font-semibold text-amber-700 mb-2 px-1 flex items-center gap-1">
-                <Sun size={12} />รอบเช้า ({fmtInt(morningItems.length)})
+              <h3 className="text-[12px] font-semibold text-stone-700 mb-2 px-1 flex items-center gap-1">
+                <Sun size={12} className="text-amber-600" />รอบเช้า
+                <span className="text-stone-400 font-normal">({fmtInt(morningItems.length)})</span>
               </h3>
               <div className="space-y-2">
                 {morningItems.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
@@ -1670,8 +1598,9 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
           )}
           {eveningItems.length > 0 && (
             <div>
-              <h3 className="text-[12px] font-semibold text-indigo-700 mb-2 px-1 flex items-center gap-1">
-                <Moon size={12} />รอบเย็น ({fmtInt(eveningItems.length)})
+              <h3 className="text-[12px] font-semibold text-stone-700 mb-2 px-1 flex items-center gap-1">
+                <Moon size={12} className="text-indigo-600" />รอบเย็น
+                <span className="text-stone-400 font-normal">({fmtInt(eveningItems.length)})</span>
               </h3>
               <div className="space-y-2">
                 {eveningItems.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
@@ -1681,7 +1610,8 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
           {xItems.length > 0 && (
             <div>
               <h3 className="text-[12px] font-semibold text-stone-600 mb-2 px-1 flex items-center gap-1">
-                <User size={12} />พี่ X โอนเอง ({fmtInt(xItems.length)}) <span className="text-stone-400">— ไม่รวมในยอดสุทธิ</span>
+                <User size={12} />พี่ X โอนเอง
+                <span className="text-stone-400 font-normal">({fmtInt(xItems.length)}) — ไม่รวมในยอดสุทธิ</span>
               </h3>
               <div className="space-y-2">
                 {xItems.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
@@ -1690,11 +1620,176 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
           )}
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SECONDARY (พับเก็บ — ขยายเมื่อต้องการ)                  */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {hasDetails && (
+        <div className="pt-2">
+          <button
+            onClick={() => setShowDetails(s => !s)}
+            className="w-full flex items-center justify-between bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-[13px] text-stone-600 hover:text-stone-900 hover:bg-stone-50 transition"
+          >
+            <span className="font-medium">รายละเอียดเพิ่มเติม</span>
+            <ChevronDown size={15} className={`transition ${showDetails ? "rotate-180" : ""}`} />
+          </button>
+
+          {showDetails && (
+            <div className="mt-3 space-y-3">
+              {/* สรุปวิธีจ่าย */}
+              {(breakdown.cash > 0 || breakdown.transfer > 0) && (
+                <div className="bg-white rounded-xl border border-stone-200 p-4">
+                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide">สรุปตามวิธีจ่าย</h3>
+                  <div className="space-y-1.5 text-[13px]">
+                    {breakdown.cash > 0 && (
+                      <div className="flex justify-between py-0.5">
+                        <span className="text-stone-700">จ่ายเงินสด</span>
+                        <span className="font-medium text-stone-900">฿{fmt(breakdown.cash)}</span>
+                      </div>
+                    )}
+                    {breakdown.transfer > 0 && (
+                      <div className="flex justify-between py-0.5">
+                        <span className="text-stone-700">โอน/สแกน</span>
+                        <span className="font-medium text-stone-900">฿{fmt(breakdown.transfer)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between py-1.5 mt-1 border-t border-stone-200">
+                      <span className="font-semibold text-stone-900">รวมสุทธิ</span>
+                      <span className="font-semibold text-emerald-700">฿{fmt(summary.total)}</span>
+                    </div>
+                    {summary.xTotal > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px] text-stone-500">
+                        <span>พี่ X โอนเอง <span className="text-stone-400">(แยก)</span></span>
+                        <span>฿{fmt(summary.xTotal)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* สรุปหมวด — list แบบ minimal ไม่มี bar chart */}
+              {byCategory.length > 0 && (
+                <div className="bg-white rounded-xl border border-stone-200 p-4">
+                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide">สรุปตามหมวด</h3>
+                  <div className="space-y-1 text-[13px]">
+                    {byCategory.map(c => {
+                      const pct = summary.total > 0 ? (c.value / summary.total) * 100 : 0;
+                      return (
+                        <div key={c.name} className="flex justify-between py-0.5">
+                          <span className="text-stone-700">{c.name}</span>
+                          <span className="font-medium text-stone-900">
+                            ฿{fmt(c.value)} <span className="text-stone-400 text-[11.5px]">({pct.toFixed(0)}%)</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* รายละเอียดทีม — minimal list ไม่มีสีจัด */}
+              {teamSum.installerCount > 0 && (
+                <div className="bg-white rounded-xl border border-stone-200 p-4">
+                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide flex items-center gap-1">
+                    🔧 ช่างติดตั้ง <span className="text-stone-400 font-normal normal-case">— {fmtInt(teamSum.installerCount)} รายการ</span>
+                  </h3>
+                  <div className="space-y-1 text-[13px]">
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-stone-700">รวม</span>
+                      <span className="font-semibold text-stone-900">฿{fmt(teamSum.installerTotal)}</span>
+                    </div>
+                    {teamSum.installerSub.fuel > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px]">
+                        <span className="text-stone-500 pl-3">ค่าน้ำมัน</span>
+                        <span className="text-stone-700">฿{fmt(teamSum.installerSub.fuel)}</span>
+                      </div>
+                    )}
+                    {teamSum.installerSub.toll > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px]">
+                        <span className="text-stone-500 pl-3">ค่าทางด่วน</span>
+                        <span className="text-stone-700">฿{fmt(teamSum.installerSub.toll)}</span>
+                      </div>
+                    )}
+                    {teamSum.installerSub.food > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px]">
+                        <span className="text-stone-500 pl-3">ค่าข้าวออกพื้นที่</span>
+                        <span className="text-stone-700">฿{fmt(teamSum.installerSub.food)}</span>
+                      </div>
+                    )}
+                    {teamSum.installerSub.other > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px]">
+                        <span className="text-stone-500 pl-3">ค่าใช้จ่ายอื่น ๆ</span>
+                        <span className="text-stone-700">฿{fmt(teamSum.installerSub.other)}</span>
+                      </div>
+                    )}
+                    {teamSum.installerDistance > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px] text-stone-400">
+                        <span className="pl-3">ระยะทางรวม</span>
+                        <span>{teamSum.installerDistance.toFixed(1)} กม.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {teamSum.mediaCount > 0 && (
+                <div className="bg-white rounded-xl border border-stone-200 p-4">
+                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide flex items-center gap-1">
+                    🎥 ทีมมีเดีย <span className="text-stone-400 font-normal normal-case">— {fmtInt(teamSum.mediaCount)} รายการ</span>
+                  </h3>
+                  <div className="space-y-1 text-[13px]">
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-stone-700">รวม</span>
+                      <span className="font-semibold text-stone-900">฿{fmt(teamSum.mediaTotal)}</span>
+                    </div>
+                    {teamSum.mediaSub.fuel > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px]">
+                        <span className="text-stone-500 pl-3">ค่าน้ำมัน</span>
+                        <span className="text-stone-700">฿{fmt(teamSum.mediaSub.fuel)}</span>
+                      </div>
+                    )}
+                    {teamSum.mediaSub.toll > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px]">
+                        <span className="text-stone-500 pl-3">ค่าทางด่วน</span>
+                        <span className="text-stone-700">฿{fmt(teamSum.mediaSub.toll)}</span>
+                      </div>
+                    )}
+                    {teamSum.mediaSub.other > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px]">
+                        <span className="text-stone-500 pl-3">ค่าใช้จ่ายอื่น ๆ</span>
+                        <span className="text-stone-700">฿{fmt(teamSum.mediaSub.other)}</span>
+                      </div>
+                    )}
+                    {teamSum.mediaDistance > 0 && (
+                      <div className="flex justify-between py-0.5 text-[12px] text-stone-400">
+                        <span className="pl-3">ระยะทางรวม</span>
+                        <span>{teamSum.mediaDistance.toFixed(1)} กม.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {teamSum.otCount > 0 && (
+                <div className="bg-white rounded-xl border border-stone-200 p-4">
+                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide flex items-center gap-1">
+                    ⏰ OT <span className="text-stone-400 font-normal normal-case">— {fmtInt(teamSum.otCount)} รายการ · {fmtInt(teamSum.otTotalPeople)} คน</span>
+                  </h3>
+                  <div className="flex justify-between py-0.5 text-[13px]">
+                    <span className="text-stone-700">รวม</span>
+                    <span className="font-semibold text-stone-900">฿{fmt(teamSum.otTotal)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-// แสดงสรุปทีม (installer หรือ media) — รับ kind = 'installer' | 'media'
+
 function TeamBreakdownCard({ ms, kind }) {
   const isInstaller = kind === 'installer';
   const total = isInstaller ? ms.installerTotal : ms.mediaTotal;

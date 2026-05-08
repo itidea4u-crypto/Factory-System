@@ -2,30 +2,81 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#047857" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
   <title>ระบบเบิกเงินสดย่อย — Factory System</title>
 
-  <!-- Tailwind CSS via CDN (play.tailwindcss.com runtime) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- IBM Plex Sans Thai -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-  <!-- React 18 + ReactDOM (UMD) -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <!-- Babel standalone (compiles JSX in browser) -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- CRITICAL CSS — ทำงานแม้ Tailwind ไม่โหลด                -->
+  <!-- ═══════════════════════════════════════════════════════ -->
   <style>
-    html, body { font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; background: #FAFAF9; }
-    #loading { position: fixed; inset: 0; display: grid; place-items: center; color: #57534e; font-size: 14px; z-index: 100; background: #FAFAF9; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: 'IBM Plex Sans Thai', system-ui, -apple-system, sans-serif;
+      background: #FAFAF9;
+      color: #1c1917;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: none;
+      min-height: 100vh;
+    }
+
+    /* iOS auto-zoom prevention */
+    input, select, textarea {
+      font-size: 16px !important;
+      font-family: inherit;
+    }
+    button { font-family: inherit; }
+
+    /* Reset appearance — ครอบคลุม iOS Safari, Chrome Android, Firefox Android, Samsung Internet */
+    button, input, textarea {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+    select {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px;
+      padding-right: 38px !important;
+    }
+
+    /* Android Chrome: ปิด ::after สีเทาตอน focus */
+    button:focus, input:focus, select:focus, textarea:focus {
+      outline: none;
+    }
+    /* แต่ keep accessibility — focus-visible แสดง outline เฉพาะ keyboard */
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 2px solid #047857;
+      outline-offset: 1px;
+    }
+
+    /* Loading screen */
+    #loading {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: #57534e; font-size: 14px;
+      z-index: 100; background: #FAFAF9;
+    }
     #loading.gone { display: none; }
     #loading .spinner {
       width: 40px; height: 40px; border-radius: 50%;
@@ -35,6 +86,175 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     #loading .text { display: flex; flex-direction: column; align-items: center; gap: 4px; }
     #loading .small { font-size: 11px; color: #a8a29e; }
+
+    /* Safe area helpers */
+    .pb-safe { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+    .pt-safe { padding-top: env(safe-area-inset-top); }
+
+    /* ═══════ HEADER ═══════ */
+    .app-header {
+      position: sticky; top: 0; z-index: 20;
+      background: #ffffff;
+      border-bottom: 1px solid #e7e5e4;
+      padding-top: env(safe-area-inset-top);
+    }
+    .app-header-inner {
+      max-width: 1024px;
+      margin: 0 auto;
+      padding: 10px 12px 8px;
+    }
+    .app-brand {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 8px;
+      min-width: 0;
+    }
+    .app-brand-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #047857, #065f46);
+      color: #ffffff;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .app-brand-icon svg { width: 18px; height: 18px; }
+    .app-brand-text { min-width: 0; flex: 1; }
+    .app-brand-title {
+      font-size: 15px; font-weight: 600; color: #1c1917;
+      line-height: 1.2; margin: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .app-brand-subtitle {
+      font-size: 11px; color: #78716c; margin: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ═══════ TAB BAR ═══════ */
+    .app-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 4px;
+      background: #f5f5f4;
+      padding: 4px;
+      border-radius: 8px;
+    }
+    .app-tab {
+      display: flex; align-items: center; justify-content: center;
+      gap: 5px;
+      padding: 9px 4px;
+      border: none; background: transparent;
+      border-radius: 6px;
+      font-size: 13.5px; font-weight: 500;
+      color: #57534e;
+      white-space: nowrap;
+      transition: all 0.15s;
+      cursor: pointer;
+      min-height: 38px;
+    }
+    .app-tab svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .app-tab.active {
+      background: #ffffff;
+      color: #047857;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    /* ═══════ MAIN ═══════ */
+    .app-main {
+      max-width: 1024px;
+      margin: 0 auto;
+      padding: 12px;
+      padding-bottom: calc(40px + env(safe-area-inset-bottom));
+    }
+
+    /* ═══════ SHIFT TOGGLE ═══════ */
+    .shift-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: #f5f5f4;
+      padding: 4px;
+      border-radius: 8px;
+    }
+    .shift-btn {
+      display: flex; align-items: center; justify-content: center;
+      gap: 5px;
+      padding: 8px 4px;
+      border: none; background: transparent;
+      border-radius: 6px;
+      font-size: 14px; font-weight: 500;
+      color: #57534e;
+      white-space: nowrap;
+      cursor: pointer;
+      min-height: 36px;
+      transition: all 0.15s;
+    }
+    .shift-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .shift-btn.active-morning {
+      background: #fef3c7;
+      color: #92400e;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .shift-btn.active-evening {
+      background: #e0e7ff;
+      color: #3730a3;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    /* ═══════ MOBILE (max-width: 640px) ═══════ */
+    @media (max-width: 640px) {
+      .app-header-inner { padding: 8px 12px 6px !important; }
+      .app-brand { margin-bottom: 6px !important; gap: 8px !important; }
+      .app-brand-icon { width: 28px !important; height: 28px !important; border-radius: 7px !important; }
+      .app-brand-icon svg { width: 16px !important; height: 16px !important; }
+      .app-brand-title { font-size: 14.5px !important; }
+      .app-brand-subtitle { display: none !important; }
+
+      .app-tab svg { display: none !important; }
+      .app-tab { padding: 9px 4px !important; font-size: 14px !important; min-height: 40px !important; }
+
+      .app-main { padding: 10px 12px !important; padding-bottom: calc(30px + env(safe-area-inset-bottom)) !important; }
+
+      .shift-btn svg { display: none !important; }
+      .shift-btn { font-size: 14.5px !important; padding: 9px 4px !important; min-height: 40px !important; }
+
+      input[type="text"], input[type="number"], input[type="date"],
+      input[type="email"], input[type="tel"], input[type="search"],
+      select, textarea {
+        font-size: 16px !important;
+        min-height: 44px !important;
+        padding: 10px 12px !important;
+      }
+      select { padding-right: 38px !important; }
+      textarea { min-height: 64px !important; }
+    }
+
+    @supports (-webkit-touch-callout: none) {
+      input[type="date"] { min-height: 44px; }
+    }
+
+    /* ═══════ ANDROID-specific tweaks ═══════ */
+    /* Android Chrome: date input ดู native ดีอยู่แล้ว แต่ height อาจไม่พอ */
+    input[type="date"]::-webkit-date-and-time-value {
+      text-align: left;
+      min-height: 1.2em;
+    }
+    /* Android: ตัด default tap ripple ที่อาจชนกับ button styling */
+    button { touch-action: manipulation; }
+
+    /* Android Chrome scrollbar (hide แต่ scroll ได้) */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+
+    /* Firefox: scrollbar */
+    * { scrollbar-width: thin; scrollbar-color: #d6d3d1 transparent; }
+
+    /* ปิด tap delay บน Android */
+    a, button, [role="button"] { touch-action: manipulation; }
+
+    /* Date input บาง Android ใช้ font ผิด */
+    input[type="date"] { font-family: inherit; }
   </style>
 </head>
 <body>
@@ -47,7 +267,6 @@
   </div>
   <div id="root"></div>
 
-  <!-- App code (compiled by Babel at runtime) -->
   <script type="text/babel" data-presets="react">
 /* ─────────────────────────────────────────────────────────────
  * ระบบเบิกเงินสดย่อย — Standalone version for GitHub Pages
@@ -495,66 +714,48 @@ function PettyCashSystem() {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap');
-        * { font-family: 'IBM Plex Sans Thai', system-ui, -apple-system, sans-serif; }
-        input, select, textarea, button { font-family: inherit; }
-
-        /* iOS: ป้องกัน auto-zoom เมื่อ focus input (ต้อง font-size >= 16px) */
-        input[type="text"], input[type="number"], input[type="date"],
-        input[type="email"], input[type="tel"], select, textarea {
-          font-size: 16px !important;
-        }
-
-        /* iOS: ลบ default style ของ button/input */
-        button, input, select, textarea {
-          -webkit-appearance: none;
-          appearance: none;
-        }
-        select { -webkit-appearance: menulist; appearance: menulist; }
-        input[type="date"] { min-height: 44px; }
-
-        /* iOS Safe area inset */
-        .pb-safe { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
-        .pt-safe { padding-top: env(safe-area-inset-top); }
-
-        /* ป้องกัน body scroll bounce + tap highlight */
-        body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
-
-        /* iOS: ทำให้ select dropdown แสดงลูกศรเอง */
-        select {
-          background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
-          background-repeat: no-repeat;
-          background-position: right 12px center;
-          background-size: 16px;
-          padding-right: 36px !important;
-          -webkit-appearance: none;
-          appearance: none;
-        }
-      `}</style>
-
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-20 pt-safe">
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-2 sm:py-3.5">
-          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-800 text-white grid place-items-center shadow-sm flex-shrink-0">
-              <Wallet size={16} strokeWidth={2.2} className="sm:hidden" />
-              <Wallet size={20} strokeWidth={2.2} className="hidden sm:block" />
+      <header className="app-header">
+        <div className="app-header-inner">
+          <div className="app-brand">
+            <div className="app-brand-icon">
+              <Wallet size={18} strokeWidth={2.2} />
             </div>
-            <div className="min-w-0">
-              <h1 className="text-[15px] sm:text-base font-semibold text-stone-900 leading-tight truncate">ระบบเบิกเงินสดย่อย</h1>
-              <p className="hidden sm:block text-[11px] text-stone-500">บันทึก · ดูย้อนหลัง · สร้างรูปสรุปส่งพี่ X</p>
+            <div className="app-brand-text">
+              <h1 className="app-brand-title">ระบบเบิกเงินสดย่อย</h1>
+              <p className="app-brand-subtitle">บันทึก · ดูย้อนหลัง · สร้างรูปสรุปส่งพี่ X</p>
             </div>
           </div>
 
-          <nav className="grid grid-cols-3 gap-1 bg-stone-100 p-1 rounded-lg">
-            <TabBtn icon={<PlusCircle size={13} />} label="เพิ่มรายการ" active={tab === "add"} onClick={() => setTab("add")} />
-            <TabBtn icon={<History size={13} />} label="ประวัติ" active={tab === "history"} onClick={() => setTab("history")} />
-            <TabBtn icon={<BarChart3 size={13} />} label="สรุป" active={tab === "summary"} onClick={() => setTab("summary")} />
+          <nav className="app-tabs">
+            <button
+              type="button"
+              onClick={() => setTab("add")}
+              className={"app-tab" + (tab === "add" ? " active" : "")}
+            >
+              <PlusCircle size={13} />
+              <span>เพิ่มรายการ</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("history")}
+              className={"app-tab" + (tab === "history" ? " active" : "")}
+            >
+              <History size={13} />
+              <span>ประวัติ</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("summary")}
+              className={"app-tab" + (tab === "summary" ? " active" : "")}
+            >
+              <BarChart3 size={13} />
+              <span>สรุป</span>
+            </button>
           </nav>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-5 pb-safe">
+      <main className="app-main">
         {loading ? (
           <div className="text-center py-20 text-stone-500 text-sm">กำลังโหลดข้อมูล...</div>
         ) : (
@@ -595,20 +796,6 @@ function PettyCashSystem() {
         <AttachmentViewer attachments={viewingAtts} onClose={() => setViewingAtts(null)} />
       )}
     </div>
-  );
-}
-
-function TabBtn({ icon, label, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 py-2.5 px-1 rounded-md text-[13px] font-medium transition whitespace-nowrap ${
-        active ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600 hover:text-stone-900"
-      }`}
-    >
-      <span className="flex-shrink-0">{icon}</span>
-      <span className="truncate">{label}</span>
-    </button>
   );
 }
 
@@ -840,22 +1027,24 @@ function AddView({ onAdd }) {
             />
           </Field>
           <Field label="รอบเบิก">
-            <div className="flex gap-1 bg-stone-100 p-1 rounded-lg">
-              {SHIFTS.map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => update("shift", s)}
-                  className={`flex-1 py-2 px-1 rounded-md text-[13px] font-medium flex items-center justify-center gap-1 whitespace-nowrap transition ${
-                    form.shift === s
-                      ? s === "เช้า" ? "bg-amber-100 text-amber-800 shadow-sm" : "bg-indigo-100 text-indigo-800 shadow-sm"
-                      : "text-stone-600"
-                  }`}
-                >
-                  {s === "เช้า" ? <Sun size={13} className="flex-shrink-0" /> : <Moon size={13} className="flex-shrink-0" />}
-                  <span>{s}</span>
-                </button>
-              ))}
+            <div className="shift-toggle">
+              {SHIFTS.map(s => {
+                const isActive = form.shift === s;
+                const activeClass = isActive
+                  ? (s === "เช้า" ? " active-morning" : " active-evening")
+                  : "";
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => update("shift", s)}
+                    className={"shift-btn" + activeClass}
+                  >
+                    {s === "เช้า" ? <Sun size={13} /> : <Moon size={13} />}
+                    <span>{s}</span>
+                  </button>
+                );
+              })}
             </div>
           </Field>
         </div>
@@ -2595,7 +2784,6 @@ _root.render(<PettyCashSystem />);
   </script>
 
   <script>
-    // ซ่อน loading หลัง React mount เสร็จ
     const observer = new MutationObserver(() => {
       const root = document.getElementById('root');
       if (root && root.children.length > 0) {
@@ -2604,8 +2792,6 @@ _root.render(<PettyCashSystem />);
       }
     });
     observer.observe(document.getElementById('root'), { childList: true });
-
-    // Fallback: ซ่อน loading หลัง 8 วินาทีไม่ว่ายังไง
     setTimeout(() => {
       document.getElementById('loading')?.classList.add('gone');
     }, 8000);

@@ -512,10 +512,9 @@ function PettyCashSystem() {
           </div>
 
           <nav className="flex gap-1 bg-stone-100 p-1 rounded-lg">
-            <TabBtn icon={<PlusCircle size={14} />} label="เพิ่ม" active={tab === "add"} onClick={() => setTab("add")} />
+            <TabBtn icon={<PlusCircle size={14} />} label="เพิ่มรายการ" active={tab === "add"} onClick={() => setTab("add")} />
             <TabBtn icon={<History size={14} />} label="ประวัติ" active={tab === "history"} onClick={() => setTab("history")} />
             <TabBtn icon={<BarChart3 size={14} />} label="สรุป" active={tab === "summary"} onClick={() => setTab("summary")} />
-            <TabBtn icon={<Send size={14} />} label="ส่งพี่ X" active={tab === "send"} onClick={() => setTab("send")} />
           </nav>
         </div>
       </header>
@@ -533,8 +532,7 @@ function PettyCashSystem() {
                 onViewAtts={setViewingAtts}
               />
             )}
-            {tab === "summary" && <SummaryView transactions={transactions} onShowImage={showImagePreview} />}
-            {tab === "send" && <SendToPartnerView transactions={transactions} onShowImage={showImagePreview} onViewAtts={setViewingAtts} />}
+            {tab === "summary" && <SummaryView transactions={transactions} onShowImage={showImagePreview} onViewAtts={setViewingAtts} />}
           </>
         )}
       </main>
@@ -1434,229 +1432,264 @@ function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
   );
 }
 
-// ─── หน้าสรุปยอด (สำหรับพี่ญ) ────────────────────────────────────
-function SummaryView({ transactions, onShowImage }) {
+// ─── หน้าสรุป — Dashboard read-only + ปุ่มดาวน์โหลดรูปสรุป ───────
+// Flow: พี่หญิงเลือกวันที่ → เช็กยอด → กดดาวน์โหลด → ส่ง LINE
+//        พี่ X เปิดดูเองได้ (read-only เต็ม ไม่มีฟอร์มหรือปุ่มแก้ไข)
+function SummaryView({ transactions, onShowImage, onViewAtts }) {
+  const [mode, setMode] = useState("day");
+  const [date, setDate] = useState(todayStr());
   const [from, setFrom] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 30);
+    d.setDate(d.getDate() - 7);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [to, setTo] = useState(todayStr());
 
-  const today = todayStr();
-  const todaySummary = useMemo(() => computeSummary(transactions, t => t.date === today), [transactions, today]);
-  const rangeSummary = useMemo(() => computeSummary(transactions, t => t.date >= from && t.date <= to), [transactions, from, to]);
-  const todayMedia = useMemo(() => computeMediaSummary(todaySummary.yItems), [todaySummary]);
-  const rangeMedia = useMemo(() => computeMediaSummary(rangeSummary.yItems), [rangeSummary]);
+  // คำนวณ summary ตามตัวกรอง
+  const summary = useMemo(() => {
+    if (mode === "day") return computeSummary(transactions, t => t.date === date);
+    return computeSummary(transactions, t => t.date >= from && t.date <= to);
+  }, [transactions, mode, date, from, to]);
 
-  const byCategory = useMemo(() => {
-    const map = {};
-    rangeSummary.yItems.forEach(t => { map[t.category] = (map[t.category] || 0) + t.amount; });
-    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [rangeSummary]);
+  const teamSum = useMemo(() => computeTeamSummary(summary.yItems), [summary]);
 
-  // breakdown 2 ตัวเลือก: จ่ายเงินสด + โอน/สแกน
-  const todayBreakdown = useMemo(() => {
+  // จัดรายการตามรอบ
+  const morningItems = useMemo(() => summary.items
+    .filter(t => t.shift === "เช้า" && t.paymentMethod !== X_PAYMENT)
+    .sort((a, b) => a.createdAt - b.createdAt), [summary.items]);
+  const eveningItems = useMemo(() => summary.items
+    .filter(t => t.shift === "เย็น" && t.paymentMethod !== X_PAYMENT)
+    .sort((a, b) => a.createdAt - b.createdAt), [summary.items]);
+  const xItems = useMemo(() => summary.items
+    .filter(t => t.paymentMethod === X_PAYMENT)
+    .sort((a, b) => a.createdAt - b.createdAt), [summary.items]);
+
+  // breakdown วิธีจ่าย
+  const breakdown = useMemo(() => {
     let cash = 0, transfer = 0;
-    todaySummary.yItems.forEach(t => {
+    summary.yItems.forEach(t => {
       if (t.paymentMethod === "จ่ายเงินสด") cash += t.amount;
       else if (t.paymentMethod === "โอน/สแกน") transfer += t.amount;
     });
     return { cash, transfer };
-  }, [todaySummary]);
+  }, [summary]);
 
-  const COLORS = ["#047857", "#0d9488", "#d97706", "#b45309", "#7c2d12", "#831843", "#3730a3", "#475569"];
+  // breakdown หมวด
+  const byCategory = useMemo(() => {
+    const map = {};
+    summary.yItems.forEach(t => { map[t.category] = (map[t.category] || 0) + t.amount; });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [summary.yItems]);
+  const CAT_COLORS = ["#047857", "#0d9488", "#d97706", "#b45309", "#7c2d12", "#831843", "#3730a3", "#475569"];
+
+  const dateLabel = mode === "day"
+    ? formatThaiDate(date)
+    : `${formatThaiDate(from)} – ${formatThaiDate(to)}`;
+  const fileLabel = mode === "day" ? date : `${from}_ถึง_${to}`;
 
   const handleGenerateImage = async () => {
-    const canvas = await renderSummaryImage(todaySummary, formatThaiDate(today), "สรุปรายวัน");
-    onShowImage(canvas, `สรุปยอด_${today}.png`);
+    const canvas = await renderSummaryImage(summary, dateLabel, mode === "day" ? "สรุปรายวัน" : "สรุปช่วงวันที่");
+    onShowImage(canvas, `สรุปยอด_${fileLabel}.png`);
   };
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[13px] font-semibold text-stone-700 flex items-center gap-1.5">
-            <Calendar size={13} />
-            วันนี้ <span className="text-stone-400 font-normal">({today})</span>
-          </h2>
-          <button
-            onClick={handleGenerateImage}
-            disabled={todaySummary.count === 0}
-            className="flex items-center gap-1 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg text-[12px] font-medium"
-          >
-            <ImageIcon size={13} /> สร้างรูปสรุปส่งพี่ X
+    <div className="space-y-3">
+      {/* ─── Banner read-only ─── */}
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 text-[12px] text-emerald-900 flex items-start gap-2">
+        <BarChart3 size={14} className="mt-0.5 flex-shrink-0" />
+        <span>เลือกวันที่หรือช่วงเวลา · เช็กยอด · กดดาวน์โหลดรูปสรุปเพื่อส่งให้พี่ X ทาง LINE</span>
+      </div>
+
+      {/* ─── Filter ─── */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-3.5 shadow-sm">
+        <div className="grid grid-cols-2 gap-1 bg-stone-100 p-1 rounded-lg mb-3">
+          <button onClick={() => setMode("day")}
+            className={`py-1.5 rounded-md text-[13px] font-medium transition ${
+              mode === "day" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
+            }`}>
+            รายวัน
+          </button>
+          <button onClick={() => setMode("range")}
+            className={`py-1.5 rounded-md text-[13px] font-medium transition ${
+              mode === "range" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
+            }`}>
+            ช่วงวันที่
           </button>
         </div>
-
-        <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-xl p-4 mb-3">
-          <p className="text-[12px] opacity-90">ยอดเบิกรวมวันนี้ <span className="opacity-70">(ไม่รวมพี่ X)</span></p>
-          <p className="text-3xl font-bold mt-1">฿{fmt(todaySummary.total)}</p>
-          <p className="text-[11px] opacity-80 mt-1">{fmtInt(todaySummary.yCount)} รายการ</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <StatCard label="เบิกเช้า" value={fmt(todaySummary.morning)} icon={<Sun size={14} />} color="amber" />
-          <StatCard label="เบิกเย็น" value={fmt(todaySummary.evening)} icon={<Moon size={14} />} color="indigo" />
-        </div>
-
-        {(todayBreakdown.cash > 0 || todayBreakdown.transfer > 0) && (
-          <div className="mt-3 pt-3 border-t border-stone-100">
-            <p className="text-[11px] text-stone-500 font-medium mb-2 uppercase tracking-wide">รายละเอียดการจ่าย</p>
-            <div className="grid grid-cols-2 gap-2 text-[12px]">
-              {todayBreakdown.cash > 0 && (
-                <div className="flex justify-between bg-stone-50 px-2.5 py-1.5 rounded">
-                  <span className="text-stone-600">จ่ายเงินสด</span>
-                  <span className="font-semibold text-stone-900">฿{fmt(todayBreakdown.cash)}</span>
-                </div>
-              )}
-              {todayBreakdown.transfer > 0 && (
-                <div className="flex justify-between bg-stone-50 px-2.5 py-1.5 rounded">
-                  <span className="text-stone-600">โอน/สแกน</span>
-                  <span className="font-semibold text-stone-900">฿{fmt(todayBreakdown.transfer)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {todayMedia.installerCount > 0 && (
-          <div className="mt-3">
-            <TeamBreakdownCard ms={todayMedia} kind="installer" />
-          </div>
-        )}
-
-        {todayMedia.mediaCount > 0 && (
-          <div className="mt-3">
-            <TeamBreakdownCard ms={todayMedia} kind="media" />
-          </div>
-        )}
-
-        {todayMedia.otCount > 0 && (
-          <div className="mt-3">
-            <OTSummaryCard ms={todayMedia} />
-          </div>
-        )}
-
-        {todaySummary.xTotal > 0 && (
-          <div className="mt-2 bg-stone-100 border border-stone-200 rounded-xl p-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[12px] text-stone-700 font-medium flex items-center gap-1">
-                <User size={12} />พี่ X โอนเอง <span className="text-stone-400">(ไม่รวมในยอดเบิก)</span>
-              </p>
-              <p className="text-base font-bold text-stone-900">฿{fmt(todaySummary.xTotal)}</p>
-            </div>
-            <p className="text-[10.5px] text-stone-500 mt-0.5">{fmtInt(todaySummary.xCount)} รายการ</p>
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-sm">
-        <h2 className="text-[13px] font-semibold text-stone-700 mb-3 flex items-center gap-1.5">
-          <BarChart3 size={13} />สรุปตามช่วงวันที่
-        </h2>
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        {mode === "day" ? (
           <div>
-            <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ตั้งแต่</label>
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">วันที่</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
-          </div>
-          <div>
-            <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ถึง</label>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)}
-              className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
-          </div>
-        </div>
-
-        <div className="bg-stone-900 text-white rounded-xl p-4 mb-4">
-          <p className="text-[11px] opacity-80">ยอดเบิกรวมตามช่วง</p>
-          <p className="text-2xl font-bold mt-1">฿{fmt(rangeSummary.total)}</p>
-          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-white/20">
-            <div>
-              <p className="text-[10px] opacity-70">เช้า</p>
-              <p className="text-[13px] font-semibold">฿{fmt(rangeSummary.morning)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] opacity-70">เย็น</p>
-              <p className="text-[13px] font-semibold">฿{fmt(rangeSummary.evening)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] opacity-70">พี่ X</p>
-              <p className="text-[13px] font-semibold">฿{fmt(rangeSummary.xTotal)}</p>
-            </div>
-          </div>
-        </div>
-
-        {(rangeMedia.mediaCount > 0 || rangeMedia.installerCount > 0 || rangeMedia.otCount > 0) && (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
-              <p className="text-[11px] text-orange-700 font-medium">🔧 ช่างติดตั้ง</p>
-              <p className="text-base font-bold text-orange-900 mt-0.5">฿{fmt(rangeMedia.installerTotal)}</p>
-              <p className="text-[10px] text-orange-600 mt-0.5">{fmtInt(rangeMedia.installerCount)} รายการ</p>
-            </div>
-            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
-              <p className="text-[11px] text-purple-700 font-medium">🎥 ทีมมีเดีย</p>
-              <p className="text-base font-bold text-purple-900 mt-0.5">฿{fmt(rangeMedia.mediaTotal)}</p>
-              <p className="text-[10px] text-purple-600 mt-0.5">{fmtInt(rangeMedia.mediaCount)} รายการ</p>
-            </div>
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
-              <p className="text-[11px] text-rose-700 font-medium">⏰ OT</p>
-              <p className="text-base font-bold text-rose-900 mt-0.5">฿{fmt(rangeMedia.otTotal)}</p>
-              <p className="text-[10px] text-rose-600 mt-0.5">{fmtInt(rangeMedia.otCount)} รายการ</p>
-            </div>
-          </div>
-        )}
-
-        {rangeMedia.installerCount > 0 && (
-          <div className="mb-3"><TeamBreakdownCard ms={rangeMedia} kind="installer" /></div>
-        )}
-        {rangeMedia.mediaCount > 0 && (
-          <div className="mb-4"><TeamBreakdownCard ms={rangeMedia} kind="media" /></div>
-        )}
-
-        {byCategory.length > 0 ? (
-          <div>
-            <p className="text-[11.5px] font-medium text-stone-600 mb-2">แยกตามหมวด</p>
-            <div className="space-y-2">
-              {byCategory.map((c, i) => {
-                const pct = rangeSummary.total > 0 ? (c.value / rangeSummary.total) * 100 : 0;
-                return (
-                  <div key={c.name}>
-                    <div className="flex justify-between text-[12px] mb-1">
-                      <span className="text-stone-700">{c.name}</span>
-                      <span className="font-medium text-stone-900">฿{fmt(c.value)} <span className="text-stone-400">({pct.toFixed(1)}%)</span></span>
-                    </div>
-                    <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
         ) : (
-          <div className="text-center py-6 text-stone-400 text-sm">
-            ยังไม่มีรายการในช่วงเวลาที่เลือก
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ตั้งแต่</label>
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ถึง</label>
+              <input type="date" value={to} onChange={e => setTo(e.target.value)}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
+            </div>
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-function StatCard({ label, value, icon, color }) {
-  const colors = {
-    amber: "bg-amber-50 border-amber-200 text-amber-800",
-    indigo: "bg-indigo-50 border-indigo-200 text-indigo-800",
-    stone: "bg-stone-100 border-stone-200 text-stone-700"
-  };
-  return (
-    <div className={`${colors[color]} border rounded-xl p-3`}>
-      <div className="flex items-center gap-1.5 mb-1 opacity-80">
-        {icon}
-        <p className="text-[11.5px] font-medium">{label}</p>
+      {/* ─── การ์ดยอดเบิกรวมสุทธิ — เด่นที่สุด ─── */}
+      <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-2xl p-5 shadow-md">
+        <p className="text-[11px] opacity-80 font-medium uppercase tracking-wide">{dateLabel}</p>
+        <p className="text-[12px] opacity-90 mt-3">ยอดเบิกรวมสุทธิ</p>
+        <p className="text-4xl font-bold mt-1">฿{fmt(summary.total)}</p>
+        <p className="text-[11px] opacity-80 mt-1.5">{fmtInt(summary.yCount)} รายการ · ไม่รวมพี่ X จ่ายเอง</p>
       </div>
-      <p className="font-bold text-lg">฿{value}</p>
+
+      {/* ─── เช้า / เย็น ─── */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+          <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1"><Sun size={12} />รวมรอบเช้า</p>
+          <p className="text-lg font-bold text-amber-900 mt-0.5">฿{fmt(summary.morning)}</p>
+          <p className="text-[10px] text-amber-700 mt-0.5">{fmtInt(morningItems.length)} รายการ</p>
+        </div>
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3.5">
+          <p className="text-[11px] text-indigo-700 font-medium flex items-center gap-1"><Moon size={12} />รวมรอบเย็น</p>
+          <p className="text-lg font-bold text-indigo-900 mt-0.5">฿{fmt(summary.evening)}</p>
+          <p className="text-[10px] text-indigo-700 mt-0.5">{fmtInt(eveningItems.length)} รายการ</p>
+        </div>
+      </div>
+
+      {/* ─── พี่ X โอนเอง (ถ้ามี) ─── */}
+      {summary.xTotal > 0 && (
+        <div className="bg-stone-100 border border-stone-200 rounded-xl p-3.5 flex items-center justify-between">
+          <div>
+            <p className="text-[11.5px] text-stone-700 font-medium flex items-center gap-1">
+              <User size={12} />พี่ X โอนเอง
+            </p>
+            <p className="text-[10.5px] text-stone-500 mt-0.5">
+              {fmtInt(summary.xCount)} รายการ · ไม่รวมในยอดเบิกสุทธิ
+            </p>
+          </div>
+          <p className="text-base font-bold text-stone-700">฿{fmt(summary.xTotal)}</p>
+        </div>
+      )}
+
+      {/* ─── ปุ่มดาวน์โหลดรูปสรุป ─── */}
+      <button
+        onClick={handleGenerateImage}
+        disabled={summary.count === 0}
+        className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 shadow-sm"
+      >
+        <Download size={16} />ดาวน์โหลดรูปสรุปส่งพี่ X
+      </button>
+
+      {/* ─── สรุปตามวิธีจ่าย ─── */}
+      {(breakdown.cash > 0 || breakdown.transfer > 0) && (
+        <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
+          <h3 className="text-[12px] font-semibold text-stone-600 mb-2.5 uppercase tracking-wide">สรุปตามวิธีจ่าย</h3>
+          <div className="space-y-1.5">
+            {breakdown.cash > 0 && (
+              <div className="flex justify-between text-[13px] py-1">
+                <span className="text-stone-700">จ่ายเงินสด</span>
+                <span className="font-semibold text-stone-900">฿{fmt(breakdown.cash)}</span>
+              </div>
+            )}
+            {breakdown.transfer > 0 && (
+              <div className="flex justify-between text-[13px] py-1">
+                <span className="text-stone-700">โอน/สแกน</span>
+                <span className="font-semibold text-stone-900">฿{fmt(breakdown.transfer)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-[13px] py-1.5 mt-1 border-t border-stone-200 font-semibold">
+              <span className="text-stone-900">รวมสุทธิ</span>
+              <span className="text-emerald-700">฿{fmt(summary.total)}</span>
+            </div>
+            {summary.xTotal > 0 && (
+              <div className="flex justify-between text-[12px] py-1 text-stone-500">
+                <span>พี่ X โอนเอง <span className="text-stone-400">(แยก)</span></span>
+                <span>฿{fmt(summary.xTotal)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── สรุปตามหมวด ─── */}
+      {byCategory.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
+          <h3 className="text-[12px] font-semibold text-stone-600 mb-2.5 uppercase tracking-wide">สรุปตามหมวด</h3>
+          <div className="space-y-2">
+            {byCategory.map((c, i) => {
+              const pct = summary.total > 0 ? (c.value / summary.total) * 100 : 0;
+              return (
+                <div key={c.name}>
+                  <div className="flex justify-between text-[12.5px] mb-1">
+                    <span className="text-stone-700">{c.name}</span>
+                    <span className="font-medium text-stone-900">
+                      ฿{fmt(c.value)} <span className="text-stone-400">({pct.toFixed(1)}%)</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── การ์ดสรุปทีม (ถ้ามี) ─── */}
+      {(teamSum.installerCount > 0 || teamSum.mediaCount > 0 || teamSum.otCount > 0) && (
+        <div className="space-y-2">
+          {teamSum.installerCount > 0 && <TeamBreakdownCard ms={teamSum} kind="installer" />}
+          {teamSum.mediaCount > 0 && <TeamBreakdownCard ms={teamSum} kind="media" />}
+          {teamSum.otCount > 0 && <OTSummaryCard ms={teamSum} />}
+        </div>
+      )}
+
+      {/* ─── รายการแยกรอบเช้า / เย็น (read-only) ─── */}
+      {summary.count === 0 ? (
+        <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center">
+          <Receipt size={36} className="mx-auto text-stone-300 mb-2" />
+          <p className="text-sm text-stone-500">ไม่มีรายการในช่วงที่เลือก</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {morningItems.length > 0 && (
+            <div>
+              <h3 className="text-[12px] font-semibold text-amber-700 mb-2 px-1 flex items-center gap-1">
+                <Sun size={12} />รอบเช้า ({fmtInt(morningItems.length)})
+              </h3>
+              <div className="space-y-2">
+                {morningItems.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
+              </div>
+            </div>
+          )}
+          {eveningItems.length > 0 && (
+            <div>
+              <h3 className="text-[12px] font-semibold text-indigo-700 mb-2 px-1 flex items-center gap-1">
+                <Moon size={12} />รอบเย็น ({fmtInt(eveningItems.length)})
+              </h3>
+              <div className="space-y-2">
+                {eveningItems.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
+              </div>
+            </div>
+          )}
+          {xItems.length > 0 && (
+            <div>
+              <h3 className="text-[12px] font-semibold text-stone-600 mb-2 px-1 flex items-center gap-1">
+                <User size={12} />พี่ X โอนเอง ({fmtInt(xItems.length)}) <span className="text-stone-400">— ไม่รวมในยอดสุทธิ</span>
+              </h3>
+              <div className="space-y-2">
+                {xItems.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1734,197 +1767,6 @@ function OTSummaryCard({ ms }) {
 // alias เก่าเพื่อ backward compat
 function MediaSummaryCard({ ms }) { return <TeamBreakdownCard ms={ms} kind="media" />; }
 
-// ─── หน้า "สรุปส่งพี่ X" — สำหรับพี่ญสร้างรูปส่ง ───────────────────
-function SendToPartnerView({ transactions, onShowImage, onViewAtts }) {
-  const [mode, setMode] = useState("day");
-  const [date, setDate] = useState(todayStr());
-  const [from, setFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
-  const [to, setTo] = useState(todayStr());
-
-  const summary = useMemo(() => {
-    if (mode === "day") return computeSummary(transactions, t => t.date === date);
-    return computeSummary(transactions, t => t.date >= from && t.date <= to);
-  }, [transactions, mode, date, from, to]);
-
-  const items = useMemo(() => {
-    return [...summary.items].sort((a, b) => {
-      if (a.date !== b.date) return b.date.localeCompare(a.date);
-      if (a.shift !== b.shift) return a.shift === "เช้า" ? -1 : 1;
-      return a.createdAt - b.createdAt;
-    });
-  }, [summary.items]);
-
-  const breakdown = useMemo(() => {
-    let cash = 0, transfer = 0;
-    summary.yItems.forEach(t => {
-      if (t.paymentMethod === "จ่ายเงินสด") cash += t.amount;
-      else if (t.paymentMethod === "โอน/สแกน") transfer += t.amount;
-    });
-    return { cash, transfer };
-  }, [summary]);
-
-  const mediaSummary = useMemo(() => computeMediaSummary(summary.yItems), [summary]);
-
-  const dateLabel = mode === "day"
-    ? formatThaiDate(date)
-    : `${formatThaiDate(from)} – ${formatThaiDate(to)}`;
-  const fileLabel = mode === "day" ? date : `${from}_ถึง_${to}`;
-
-  const handleGenerateImage = async () => {
-    const canvas = await renderSummaryImage(summary, dateLabel, mode === "day" ? "สรุปรายวัน" : "สรุปช่วงวันที่");
-    onShowImage(canvas, `สรุปยอด_${fileLabel}.png`);
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 text-[12px] text-emerald-900 flex items-start gap-2">
-        <Send size={14} className="mt-0.5 flex-shrink-0" />
-        <span>เลือกวันที่หรือช่วงเวลา ตรวจตัวเลข แล้วกดสร้างรูปเพื่อส่งให้พี่ X ทาง LINE</span>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-stone-200 p-3.5 shadow-sm">
-        <div className="grid grid-cols-2 gap-1 bg-stone-100 p-1 rounded-lg mb-3">
-          <button onClick={() => setMode("day")}
-            className={`py-1.5 rounded-md text-[13px] font-medium transition ${
-              mode === "day" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
-            }`}>
-            รายวัน
-          </button>
-          <button onClick={() => setMode("range")}
-            className={`py-1.5 rounded-md text-[13px] font-medium transition ${
-              mode === "range" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
-            }`}>
-            ช่วงวันที่
-          </button>
-        </div>
-
-        {mode === "day" ? (
-          <div>
-            <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">วันที่</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ตั้งแต่</label>
-              <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-                className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
-            </div>
-            <div>
-              <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ถึง</label>
-              <input type="date" value={to} onChange={e => setTo(e.target.value)}
-                className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
-        <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white p-5">
-          <p className="text-[11px] opacity-80 font-medium uppercase tracking-wide">{dateLabel}</p>
-          <p className="text-[12px] opacity-90 mt-2">ยอดเบิกรวมสุทธิ</p>
-          <p className="text-4xl font-bold mt-1">฿{fmt(summary.total)}</p>
-          <p className="text-[11px] opacity-80 mt-1">{fmtInt(summary.yCount)} รายการ</p>
-        </div>
-
-        <div className="grid grid-cols-2 divide-x divide-stone-200 border-b border-stone-200">
-          <div className="p-3.5">
-            <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1"><Sun size={11} />รวมรอบเช้า</p>
-            <p className="text-lg font-bold text-stone-900 mt-0.5">฿{fmt(summary.morning)}</p>
-          </div>
-          <div className="p-3.5">
-            <p className="text-[11px] text-indigo-700 font-medium flex items-center gap-1"><Moon size={11} />รวมรอบเย็น</p>
-            <p className="text-lg font-bold text-stone-900 mt-0.5">฿{fmt(summary.evening)}</p>
-          </div>
-        </div>
-
-        {(breakdown.cash > 0 || breakdown.transfer > 0) && (
-          <div className="px-3.5 py-3 border-b border-stone-200">
-            <p className="text-[10.5px] text-stone-500 font-medium uppercase tracking-wide mb-1.5">รายละเอียดการจ่าย</p>
-            <div className="space-y-1 text-[12.5px]">
-              {breakdown.cash > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-stone-600">จ่ายเงินสด</span>
-                  <span className="font-semibold text-stone-900">฿{fmt(breakdown.cash)}</span>
-                </div>
-              )}
-              {breakdown.transfer > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-stone-600">โอน/สแกน</span>
-                  <span className="font-semibold text-stone-900">฿{fmt(breakdown.transfer)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {summary.xTotal > 0 && (
-          <div className="bg-stone-50 p-3.5 border-b border-stone-200 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] text-stone-600 font-medium flex items-center gap-1"><User size={11} />พี่ X โอนเอง</p>
-              <p className="text-[10px] text-stone-400 mt-0.5">{fmtInt(summary.xCount)} รายการ · ไม่รวมในยอดเบิก</p>
-            </div>
-            <p className="text-base font-semibold text-stone-700">฿{fmt(summary.xTotal)}</p>
-          </div>
-        )}
-
-        <div className="p-3.5 flex items-center justify-between">
-          <p className="text-[11px] text-stone-500">รวมรายการทั้งหมด</p>
-          <p className="text-[13px] font-semibold text-stone-900">{fmtInt(summary.count)} รายการ</p>
-        </div>
-      </div>
-
-      {(mediaSummary.mediaCount > 0 || mediaSummary.installerCount > 0 || mediaSummary.otCount > 0) && (
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
-            <p className="text-[11px] text-orange-700 font-medium">🔧 ช่างติดตั้ง</p>
-            <p className="text-base font-bold text-orange-900 mt-0.5">฿{fmt(mediaSummary.installerTotal)}</p>
-            <p className="text-[10px] text-orange-600 mt-0.5">{fmtInt(mediaSummary.installerCount)} รายการ</p>
-          </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
-            <p className="text-[11px] text-purple-700 font-medium">🎥 ทีมมีเดีย</p>
-            <p className="text-base font-bold text-purple-900 mt-0.5">฿{fmt(mediaSummary.mediaTotal)}</p>
-            <p className="text-[10px] text-purple-600 mt-0.5">{fmtInt(mediaSummary.mediaCount)} รายการ</p>
-          </div>
-          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
-            <p className="text-[11px] text-rose-700 font-medium">⏰ OT</p>
-            <p className="text-base font-bold text-rose-900 mt-0.5">฿{fmt(mediaSummary.otTotal)}</p>
-            <p className="text-[10px] text-rose-600 mt-0.5">{fmtInt(mediaSummary.otCount)} รายการ</p>
-          </div>
-        </div>
-      )}
-
-      {mediaSummary.installerCount > 0 && <TeamBreakdownCard ms={mediaSummary} kind="installer" />}
-      {mediaSummary.mediaCount > 0 && <TeamBreakdownCard ms={mediaSummary} kind="media" />}
-      {mediaSummary.otCount > 0 && <OTSummaryCard ms={mediaSummary} /> }
-
-      <button
-        onClick={handleGenerateImage}
-        disabled={summary.count === 0}
-        className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 shadow-sm"
-      >
-        <ImageIcon size={16} />สร้างรูปสรุปส่งพี่ X
-      </button>
-
-      {items.length > 0 ? (
-        <div className="space-y-2">
-          <h3 className="text-[12px] font-semibold text-stone-600 px-1 mt-2">รายการในช่วงนี้</h3>
-          {items.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl border border-stone-200 p-10 text-center">
-          <Receipt size={32} className="mx-auto text-stone-300 mb-2" />
-          <p className="text-sm text-stone-500">ไม่มีรายการในช่วงที่เลือก</p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── สร้างรูปสรุป (Canvas) ───────────────────────────────────────
 // โครงรูป (top → bottom):

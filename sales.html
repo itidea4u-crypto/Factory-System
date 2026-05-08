@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบยอดขายกลาง</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23EF5B0C'/%3E%3Cpath d='M20 75 L20 75 L35 55 L50 65 L65 35 L80 25' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Kanit:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream: #F4EFD9;
+      --cream-2: #E4DEB8;
+      --yellow: #F6CE3D;
+      --yellow-d: #F0C11E;
+      --yellow-soft: #FFF3C7;
+      --orange: #EF5B0C;
+      --orange-d: #C84A0A;
+      --orange-soft: #FFE4DA;
+      --olive: #6B8E23;
+      --olive-d: #4A6B14;
+      --olive-soft: #E8F0DA;
+      --dark: #1A1A1A;
+      --gray: #8A8278;
+      --gray-2: #C9C2B0;
+      --white: #FFFFFF;
+      --shadow-sm: 0 4px 0 rgba(26, 26, 26, 0.10);
+      --shadow:    0 6px 0 rgba(26, 26, 26, 0.12);
+      --shadow-lg: 0 8px 0 rgba(26, 26, 26, 0.14);
+    }
+
+    body {
+      min-height: 100vh;
+      background: var(--cream);
+      font-family: 'Sarabun', sans-serif;
+      color: var(--dark);
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, var(--cream-2) 1.2px, transparent 1.2px);
+      background-size: 32px 32px;
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ============ HEADER ============ */
+    .top-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--orange);
+      color: white;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 4px 0 rgba(26, 26, 26, 0.18);
+    }
+    .back-btn {
+      width: 40px;
+      height: 40px;
+      background: white;
+      color: var(--orange);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      box-shadow: 0 3px 0 rgba(26, 26, 26, 0.35);
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .back-btn svg { width: 22px; height: 22px; }
+    .back-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 0 rgba(26, 26, 26, 0.35); }
+    .back-btn:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(26, 26, 26, 0.35); }
+
+    .brand h1 {
+      font-family: 'Kanit', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .round-pill {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      margin-top: 4px;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 400;
+    }
+
+    .user-area {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Kanit', sans-serif;
+    }
+    .user-name { font-size: 14px; font-weight: 500; }
+    .user-role { font-size: 11px; opacity: 0.75; }
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--yellow);
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 700;
+      box-shadow: 0 3px 0 rgba(26, 26, 26, 0.35);
+    }
+
+    /* ============ TABS ============ */
+    .tabs {
+      position: sticky;
+      top: 68px;
+      z-index: 40;
+      background: var(--cream);
+      padding: 16px 24px 14px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--cream-2);
+      overflow-x: auto;
+    }
+    .tab {
+      background: var(--white);
+      border: none;
+      padding: 9px 18px;
+      border-radius: 14px;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--dark);
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab svg { width: 16px; height: 16px; }
+    .tab:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .tab.active {
+      background: var(--orange);
+      color: white;
+      box-shadow: 0 4px 0 rgba(26, 26, 26, 0.20);
+    }
+
+    /* ============ PAGE ============ */
+    .page { display: none; padding: 28px 24px 80px; max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
+    .page.active { display: block; animation: fadeIn 0.35s ease-out; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .page-title {
+      font-family: 'Kanit', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+    .page-subtitle {
+      font-family: 'Kanit', sans-serif;
+      font-size: 14px;
+      color: var(--gray);
+      font-weight: 400;
+      margin-bottom: 24px;
+    }
+
+    /* ============ CARDS ============ */
+    .card {
+      background: var(--white);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-family: 'Kanit', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .card-subtitle {
+      font-family: 'Sarabun', sans-serif;
+      font-size: 12px;
+      color: var(--gray);
+      margin-bottom: 16px;
+    }
+
+    /* ============ KPI ============ */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .kpi {
+      background: var(--white);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      transition: all 0.15s;
+    }
+    .kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .kpi.highlight { background: var(--yellow); }
+    .kpi.highlight-orange { background: var(--orange); color: white; }
+    .kpi-label {
+      font-family: 'Kanit', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--gray);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .kpi.highlight .kpi-label { color: var(--dark); opacity: 0.7; }
+    .kpi.highlight-orange .kpi-label { color: white; opacity: 0.85; }
+    .kpi-value {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 26px;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      font-feature-settings: 'tnum';
+    }
+    .kpi-trend {
+      font-family: 'Kanit', sans-serif;
+      font-size: 11px;
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 3px 9px;
+      border-radius: 10px;
+      font-weight: 500;
+      background: var(--cream);
+      color: var(--dark);
+    }
+    .kpi-trend.up { background: var(--olive-soft); color: var(--olive-d); }
+    .kpi-trend.down { background: var(--orange-soft); color: var(--orange-d); }
+    .kpi.highlight-orange .kpi-trend { background: rgba(255,255,255,0.25); color: white; }
+
+    /* ============ FILTERS ============ */
+    .filter-bar {
+      background: var(--white);
+      border-radius: 18px;
+      padding: 14px 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .filter-label {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--dark);
+    }
+    .filter-select {
+      background: var(--cream);
+      border: 2px solid var(--cream-2);
+      border-radius: 12px;
+      padding: 7px 32px 7px 12px;
+      font-family: 'Kanit', sans-serif;
+      font-size: 13px;
+      color: var(--dark);
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231A1A1A' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      transition: all 0.15s;
+    }
+    .filter-select:hover, .filter-select:focus {
+      outline: none;
+      border-color: var(--orange);
+      background-color: var(--white);
+    }
+    .filter-meta {
+      margin-left: auto;
+      font-family: 'Kanit', sans-serif;
+      font-size: 11px;
+      color: var(--gray);
+    }
+
+    /* ============ CHARTS ============ */
+    .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .grid-1-1 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    @media (max-width: 800px) {
+      .grid-2, .grid-1-1 { grid-template-columns: 1fr; }
+    }
+
+    /* Bar chart (horizontal) */
+    .h-bars { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+    .h-bar-row {
+      display: grid;
+      grid-template-columns: 50px 1fr 90px;
+      align-items: center;
+      gap: 12px;
+    }
+    .h-bar-name {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .h-bar-track {
+      background: var(--cream);
+      height: 26px;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+    .h-bar-fill {
+      height: 100%;
+      border-radius: 8px;
+      background: var(--orange);
+      transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.08);
+    }
+    .h-bar-row:nth-child(1) .h-bar-fill { background: var(--orange); }
+    .h-bar-row:nth-child(2) .h-bar-fill { background: #FF7A2A; }
+    .h-bar-row:nth-child(3) .h-bar-fill { background: var(--yellow); }
+    .h-bar-row:nth-child(4) .h-bar-fill { background: var(--yellow-d); }
+    .h-bar-row:nth-child(5) .h-bar-fill { background: #B5A329; }
+    .h-bar-row:nth-child(6) .h-bar-fill { background: var(--olive); }
+    .h-bar-value {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 14px;
+      text-align: right;
+      font-feature-settings: 'tnum';
+    }
+
+    /* Vertical bars (daily) */
+    .v-bars {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-around;
+      height: 180px;
+      gap: 8px;
+      padding: 12px 4px 0;
+    }
+    .v-bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      height: 100%;
+    }
+    .v-bar-track {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+    }
+    .v-bar-fill {
+      width: 100%;
+      background: var(--yellow);
+      border-radius: 8px 8px 0 0;
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), 0 -2px 0 rgba(0,0,0,0.05);
+      transition: height 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .v-bar-fill.peak { background: var(--orange); }
+    .v-bar-name {
+      font-family: 'Kanit', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--dark);
+    }
+
+    /* Donut */
+    .donut-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .donut {
+      width: 160px;
+      height: 160px;
+      transform: rotate(-90deg);
+    }
+    .donut-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .donut-container { position: relative; display: inline-block; }
+    .donut-total-num {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .donut-total-label {
+      font-family: 'Kanit', sans-serif;
+      font-size: 10px;
+      color: var(--gray);
+      margin-top: 2px;
+    }
+    .legend {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    .legend-left { display: flex; align-items: center; gap: 8px; font-family: 'Kanit', sans-serif; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+    .legend-val { font-family: 'Archivo Black', sans-serif; font-size: 12px; }
+
+    /* Line / Area chart */
+    .line-chart-wrap { width: 100%; height: 200px; }
+    .line-chart { width: 100%; height: 100%; overflow: visible; }
+
+    /* ============ TABLE ============ */
+    .table-card { padding: 0; overflow: hidden; }
+    .table-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px;
+      border-bottom: 2px dashed var(--cream-2);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead tr {
+      background: var(--cream);
+    }
+    thead th {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 12px 16px;
+      text-align: left;
+      color: var(--gray);
+    }
+    thead th.right { text-align: right; }
+    thead th.center { text-align: center; }
+    tbody tr { border-bottom: 1px solid var(--cream-2); transition: background 0.15s; }
+    tbody tr:hover { background: var(--yellow-soft); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td {
+      padding: 12px 16px;
+      font-family: 'Sarabun', sans-serif;
+    }
+    tbody td.right { text-align: right; font-family: 'Archivo Black', sans-serif; font-size: 13px; }
+    tbody td.center { text-align: center; }
+    tbody td.mono { font-family: 'Archivo Black', sans-serif; font-size: 12px; color: var(--gray); }
+    .sale-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 500;
+    }
+    .sale-mini {
+      width: 24px; height: 24px;
+      background: var(--yellow);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      background: var(--olive-soft);
+      color: var(--olive-d);
+      border-radius: 14px;
+      font-family: 'Kanit', sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    /* ============ FORM ============ */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+    .field label {
+      display: block;
+      font-family: 'Kanit', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--dark);
+      margin-bottom: 6px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: var(--cream);
+      border: 2px solid var(--cream-2);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 14px;
+      color: var(--dark);
+      transition: all 0.15s;
+    }
+    .field select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231A1A1A' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; cursor: pointer; }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--orange);
+      background: var(--white);
+    }
+
+    /* ============ BUTTONS ============ */
+    .btn {
+      background: var(--yellow);
+      color: var(--dark);
+      border: none;
+      padding: 11px 22px;
+      border-radius: 14px;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 rgba(26, 26, 26, 0.20);
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn:hover { transform: translateY(-2px); background: var(--yellow-d); box-shadow: 0 6px 0 rgba(26, 26, 26, 0.20); }
+    .btn:active { transform: translateY(1px); box-shadow: 0 3px 0 rgba(26, 26, 26, 0.20); }
+    .btn svg { width: 16px; height: 16px; stroke-width: 2.5; }
+
+    .btn-primary { background: var(--orange); color: white; box-shadow: 0 4px 0 var(--orange-d); }
+    .btn-primary:hover { background: #FF6A1F; box-shadow: 0 6px 0 var(--orange-d); }
+    .btn-primary:active { box-shadow: 0 2px 0 var(--orange-d); }
+
+    .btn-ghost { background: var(--white); }
+    .btn-ghost:hover { background: var(--cream); }
+
+    .btn-success { background: var(--olive); color: white; box-shadow: 0 4px 0 var(--olive-d); }
+    .btn-success:hover { background: #7A9F2A; box-shadow: 0 6px 0 var(--olive-d); }
+
+    /* ============ AI PAGE ============ */
+    .ai-overview {
+      background: var(--dark);
+      color: white;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .ai-overview::after {
+      content: '';
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(239,91,12,0.4), transparent 70%);
+      pointer-events: none;
+    }
+    .ai-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+      position: relative;
+      z-index: 1;
+    }
+    .ai-stat-label {
+      font-family: 'Kanit', sans-serif;
+      font-size: 11px;
+      opacity: 0.6;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .ai-stat-value {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+    }
+    .ai-stat-value.accent { color: var(--orange); }
+    .ai-summary {
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      font-size: 13px;
+      line-height: 1.7;
+      color: #D9D9D9;
+      position: relative;
+      z-index: 1;
+    }
+    .ai-summary b { color: var(--yellow); }
+
+    .zone-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 24px 0 14px;
+    }
+    .zone-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .zone-dot.red { background: var(--orange); }
+    .zone-dot.yellow { background: var(--yellow); }
+    .zone-dot.green { background: var(--olive); }
+    .zone-title {
+      font-family: 'Kanit', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .zone-count {
+      font-family: 'Kanit', sans-serif;
+      font-size: 12px;
+      color: var(--gray);
+    }
+
+    .person-card {
+      background: var(--white);
+      border-radius: 18px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 12px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .person-card.red { background: var(--orange); color: white; box-shadow: 0 6px 0 var(--orange-d); }
+    .person-card.yellow { background: var(--yellow); box-shadow: 0 6px 0 var(--yellow-d); }
+    .person-card.green { background: var(--olive); color: white; box-shadow: 0 6px 0 var(--olive-d); }
+
+    .person-avatar {
+      width: 48px;
+      height: 48px;
+      background: var(--white);
+      color: var(--dark);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      flex-shrink: 0;
+      box-shadow: 0 3px 0 rgba(0,0,0,0.15);
+    }
+    .person-card.yellow .person-avatar { background: var(--dark); color: var(--yellow); }
+
+    .person-body { flex: 1; }
+    .person-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .person-name {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .priority-badge {
+      background: rgba(255,255,255,0.25);
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-family: 'Kanit', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .person-card.yellow .priority-badge { background: rgba(0,0,0,0.15); }
+    .person-reason {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 500;
+      font-size: 13px;
+      margin-bottom: 8px;
+      opacity: 0.95;
+    }
+    .person-coach {
+      font-size: 13px;
+      line-height: 1.6;
+      opacity: 0.9;
+      margin-bottom: 12px;
+    }
+    .actions-box {
+      background: rgba(255,255,255,0.18);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .person-card.yellow .actions-box { background: rgba(0,0,0,0.08); }
+    .actions-title {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    .actions-list {
+      list-style: none;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .actions-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .actions-list li::before {
+      content: '→';
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* AI Action Bar */
+    .ai-action-bar {
+      background: var(--white);
+      border-radius: 18px;
+      padding: 14px 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .ai-action-icon {
+      width: 42px;
+      height: 42px;
+      background: var(--orange);
+      color: white;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 0 var(--orange-d);
+    }
+    .ai-action-text { flex: 1; min-width: 200px; }
+    .ai-action-title { font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 14px; }
+    .ai-action-sub { font-family: 'Sarabun', sans-serif; font-size: 12px; color: var(--gray); }
+
+    /* ============ LINE PAGE ============ */
+    .line-grid {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .line-grid { grid-template-columns: 1fr; } }
+
+    .phone-frame {
+      background: linear-gradient(180deg, #C8E6C9, #E8F5E9);
+      border-radius: 24px;
+      padding: 18px;
+      box-shadow: var(--shadow-lg);
+    }
+    .line-chat-head {
+      background: white;
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 0 rgba(0,0,0,0.05);
+      margin-bottom: 16px;
+    }
+    .group-avatar {
+      width: 44px; height: 44px;
+      background: var(--olive);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 700;
+    }
+    .group-info { flex: 1; }
+    .group-name { font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 14px; }
+    .group-members { font-family: 'Kanit', sans-serif; font-size: 11px; color: var(--gray); }
+    .online-dot { width: 8px; height: 8px; background: var(--olive); border-radius: 50%; }
+
+    .chat-msg {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .chat-avatar {
+      width: 32px; height: 32px;
+      background: var(--orange);
+      color: white;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Kanit', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .chat-bubble-wrap { flex: 1; min-width: 0; }
+    .chat-meta {
+      font-family: 'Kanit', sans-serif;
+      font-size: 10px;
+      color: var(--gray);
+      margin-bottom: 4px;
+      padding-left: 4px;
+    }
+    .chat-bubble {
+      background: white;
+      border-radius: 16px 16px 16px 4px;
+      padding: 14px 16px;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: 0 2px 0 rgba(0,0,0,0.05);
+    }
+    .chat-status {
+      font-family: 'Kanit', sans-serif;
+      font-size: 10px;
+      color: var(--gray);
+      margin-top: 4px;
+      padding-left: 4px;
+    }
+
+    .typing-row {
+      display: flex; gap: 8px;
+      opacity: 0.7;
+      margin-top: 12px;
+    }
+    .typing-avatar {
+      width: 32px; height: 32px;
+      background: var(--gray-2);
+      border-radius: 50%;
+    }
+    .typing-bubble {
+      background: white;
+      border-radius: 16px 16px 16px 4px;
+      padding: 12px 14px;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .typing-bubble span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--gray-2);
+      animation: blink 1.4s infinite;
+    }
+    .typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+    .code-block {
+      background: var(--dark);
+      border-radius: 14px;
+      padding: 16px;
+      font-family: 'Sarabun', monospace;
+      font-size: 12px;
+      color: #E5E5E5;
+      line-height: 1.7;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .info-box {
+      background: var(--orange-soft);
+      border-left: 4px solid var(--orange);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-top: 12px;
+    }
+    .info-box-title {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--orange-d);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .info-box-text {
+      font-size: 12px;
+      color: var(--dark);
+      line-height: 1.6;
+    }
+
+    /* ============ ROADMAP ============ */
+    .timeline {
+      position: relative;
+      padding-left: 28px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 26px;
+      top: 8px;
+      bottom: 8px;
+      width: 3px;
+      background: var(--cream-2);
+      border-radius: 2px;
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 18px;
+    }
+    .timeline-dot {
+      position: absolute;
+      left: -28px;
+      top: 0;
+      width: 56px;
+      height: 56px;
+      background: var(--cream-2);
+      color: var(--dark);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Archivo Black', sans-serif;
+      box-shadow: 0 4px 0 rgba(26, 26, 26, 0.10);
+      z-index: 2;
+      border: 4px solid var(--cream);
+    }
+    .timeline-dot.done { background: var(--olive); color: white; }
+    .timeline-dot.current { background: var(--orange); color: white; animation: pulse-current 2s infinite; }
+    .timeline-dot.next { background: var(--yellow); color: var(--dark); }
+    .timeline-dot svg { width: 22px; height: 22px; stroke-width: 2.5; }
+    @keyframes pulse-current {
+      0%, 100% { box-shadow: 0 4px 0 rgba(26, 26, 26, 0.10), 0 0 0 0 rgba(239, 91, 12, 0.4); }
+      50% { box-shadow: 0 4px 0 rgba(26, 26, 26, 0.10), 0 0 0 12px rgba(239, 91, 12, 0); }
+    }
+
+    .timeline-card {
+      background: var(--white);
+      border-radius: 18px;
+      padding: 18px 22px;
+      margin-left: 40px;
+      box-shadow: var(--shadow);
+    }
+    .timeline-card.current { box-shadow: 0 6px 0 var(--orange-d); background: linear-gradient(135deg, #FFF7EE, white); }
+    .timeline-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+    .timeline-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .timeline-title {
+      font-family: 'Kanit', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .timeline-time {
+      text-align: right;
+    }
+    .timeline-time-label {
+      font-family: 'Kanit', sans-serif;
+      font-size: 10px;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .timeline-time-value {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 13px;
+    }
+    .timeline-desc {
+      font-size: 13px;
+      color: var(--dark);
+      line-height: 1.6;
+      margin-bottom: 12px;
+      opacity: 0.85;
+    }
+    .timeline-items {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 2px dashed var(--cream-2);
+    }
+    .timeline-item-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .timeline-item-row svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; stroke-width: 2.5; }
+
+    .status-pill-2 {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-family: 'Kanit', sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .status-pill-2.done { background: var(--olive-soft); color: var(--olive-d); }
+    .status-pill-2.current { background: var(--orange-soft); color: var(--orange-d); }
+    .status-pill-2.next { background: var(--yellow-soft); color: var(--orange-d); }
+    .status-pill-2.future { background: var(--cream-2); color: var(--gray); }
+
+    .recommend-box {
+      background: var(--orange);
+      color: white;
+      border-radius: 18px;
+      padding: 24px;
+      margin-top: 28px;
+      box-shadow: 0 6px 0 var(--orange-d);
+      position: relative;
+      overflow: hidden;
+    }
+    .recommend-box::after {
+      content: '';
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
+    }
+    .recommend-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Kanit', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      opacity: 0.9;
+    }
+    .recommend-title {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 700;
+      font-size: 24px;
+      line-height: 1.2;
+      margin-bottom: 8px;
+      position: relative;
+      z-index: 1;
+    }
+    .recommend-text {
+      font-size: 13px;
+      line-height: 1.7;
+      max-width: 600px;
+      margin-bottom: 16px;
+      opacity: 0.95;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ============ INPUT PAGE ============ */
+    .input-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .input-grid { grid-template-columns: 1fr; } }
+
+    .tip-card {
+      background: var(--yellow);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 6px 0 var(--yellow-d);
+    }
+    .tip-title {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tip-list { list-style: none; font-size: 12px; line-height: 1.7; }
+    .tip-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .tip-list li svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; }
+
+    .stat-card {
+      background: var(--orange);
+      color: white;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 6px 0 var(--orange-d);
+      margin-top: 14px;
+    }
+    .stat-card-label { font-family: 'Kanit', sans-serif; font-size: 11px; opacity: 0.85; margin-bottom: 4px; }
+    .stat-card-value { font-family: 'Archivo Black', sans-serif; font-size: 32px; line-height: 1; }
+    .stat-card-sub { font-family: 'Kanit', sans-serif; font-size: 11px; opacity: 0.85; margin-top: 4px; }
+    .stat-card-divider { border-top: 1px dashed rgba(255,255,255,0.3); margin: 12px 0; }
+    .stat-card-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+
+    .toast {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--olive);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-family: 'Kanit', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      animation: fadeIn 0.3s;
+    }
+
+    /* ============ Generic ============ */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-family: 'Kanit', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--cream);
+      color: var(--dark);
+    }
+
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--cream-2); border-radius: 3px; }
+
+    @media (max-width: 600px) {
+      .top-header { padding: 10px 14px; }
+      .brand h1 { font-size: 17px; }
+      .round-pill { font-size: 10px; }
+      .user-name, .user-role { display: none; }
+      .tabs { padding: 12px 14px; }
+      .page { padding: 20px 14px 60px; }
+      .page-title { font-size: 22px; }
+      .kpi-value { font-size: 22px; }
+      .table-card { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <!-- ============ HEADER ============ -->
+  <header class="top-header">
+    <a href="index.html" class="back-btn" title="กลับหน้าหลัก">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    </a>
+    <div class="brand">
+      <h1>ระบบยอดขายกลาง</h1>
+      <span class="round-pill">📅 รอบ 26 เม.ย. – 2 พ.ค. 2569 • v4.0.4</span>
+    </div>
+    <div class="user-area">
+      <div style="text-align: right;">
+        <div class="user-name">พี่แคท</div>
+        <div class="user-role">ผู้บริหาร</div>
+      </div>
+      <div class="user-avatar">แค</div>
+    </div>
+  </header>
+
+  <!-- ============ TABS ============ -->
+  <nav class="tabs">
+    <button class="tab active" data-page="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16v-7"/><path d="M12 16v-4"/><path d="M17 16v-10"/></svg>
+      ภาพรวม
+    </button>
+    <button class="tab" data-page="input">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+      กรอกยอดขาย
+    </button>
+    <button class="tab" data-page="ai">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 13.9 8.1 19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M5 3v4"/><path d="M3 5h4"/><path d="M19 17v4"/><path d="M17 19h4"/></svg>
+      AI วิเคราะห์
+    </button>
+    <button class="tab" data-page="line">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      สรุปสำหรับ LINE
+    </button>
+    <button class="tab" data-page="roadmap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6 9 3l6 3 6-3v15l-6 3-6-3-6 3z"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      Phase Roadmap
+    </button>
+  </nav>
+
+  <!-- ============ PAGE: DASHBOARD ============ -->
+  <section id="page-dashboard" class="page active">
+    <h2 class="page-title">ภาพรวมยอดขาย</h2>
+    <p class="page-subtitle">รอบรายงานสัปดาห์ที่ 18 ของปี 2569</p>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+      <div class="filter-label">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF5B0C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        ตัวกรอง
+      </div>
+      <select class="filter-select"><option>📅 สัปดาห์นี้</option><option>เดือนนี้</option><option>7 วันล่าสุด</option><option>30 วันล่าสุด</option></select>
+      <select class="filter-select"><option>👥 ทุกคน</option><option>อุ๋ม</option><option>เมย์</option><option>ส้ม</option><option>กรีน</option><option>จุ๋ม</option><option>เบล</option></select>
+      <select class="filter-select"><option>📦 ทุกเพจ</option><option>เพจ Aroma</option><option>เพจ Beauty</option><option>เพจ Care</option><option>เพจ Dream</option></select>
+      <span class="filter-meta">อัปเดตล่าสุด: 02 พ.ค. 18:02</span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi highlight-orange">
+        <div class="kpi-label">ยอดทีมรวม</div>
+        <div class="kpi-value">฿883,467</div>
+        <span class="kpi-trend">↑ +12.4%</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">จำนวนบิล</div>
+        <div class="kpi-value">94</div>
+        <span class="kpi-trend up">↑ +8 ใบ</span>
+      </div>
+      <div class="kpi highlight">
+        <div class="kpi-label">Conversion</div>
+        <div class="kpi-value">39.3%</div>
+        <span class="kpi-trend up">↑ +2.1%</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">เฉลี่ย/บิล</div>
+        <div class="kpi-value">฿9,398</div>
+        <span class="kpi-trend down">↓ -3.2%</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">ดีลใหญ่ค้าง</div>
+        <div class="kpi-value">฿771K</div>
+        <span class="kpi-trend">9 ดีล</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">เซลล์ Active</div>
+        <div class="kpi-value">6</div>
+        <span class="kpi-trend">ทั้งหมด</span>
+      </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="grid-2">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+          <div>
+            <div class="card-title">ยอดขายต่อเซลล์</div>
+            <div class="card-subtitle">เรียงตามยอดสูงสุด</div>
+          </div>
+          <span class="badge">รวม ฿883K</span>
+        </div>
+        <div class="h-bars">
+          <div class="h-bar-row"><span class="h-bar-name">อุ๋ม</span><div class="h-bar-track"><div class="h-bar-fill" style="width: 100%;"></div></div><span class="h-bar-value">245,800</span></div>
+          <div class="h-bar-row"><span class="h-bar-name">ส้ม</span><div class="h-bar-track"><div class="h-bar-fill" style="width: 80.7%;"></div></div><span class="h-bar-value">198,400</span></div>
+          <div class="h-bar-row"><span class="h-bar-name">จุ๋ม</span><div class="h-bar-track"><div class="h-bar-fill" style="width: 63.5%;"></div></div><span class="h-bar-value">156,200</span></div>
+          <div class="h-bar-row"><span class="h-bar-name">กรีน</span><div class="h-bar-track"><div class="h-bar-fill" style="width: 45.7%;"></div></div><span class="h-bar-value">112,300</span></div>
+          <div class="h-bar-row"><span class="h-bar-name">เบล</span><div class="h-bar-track"><div class="h-bar-fill" style="width: 40.2%;"></div></div><span class="h-bar-value">98,750</span></div>
+          <div class="h-bar-row"><span class="h-bar-name">เมย์</span><div class="h-bar-track"><div class="h-bar-fill" style="width: 29.3%;"></div></div><span class="h-bar-value">72,017</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">ยอดต่อเพจ</div>
+        <div class="card-subtitle">สัดส่วน 4 เพจหลัก</div>
+        <div class="donut-wrap">
+          <div class="donut-container">
+            <svg class="donut" viewBox="0 0 42 42">
+              <circle cx="21" cy="21" r="15.915" fill="none" stroke="#F4EFD9" stroke-width="6"/>
+              <circle cx="21" cy="21" r="15.915" fill="none" stroke="#EF5B0C" stroke-width="6" stroke-dasharray="35.4 100" stroke-dashoffset="0"/>
+              <circle cx="21" cy="21" r="15.915" fill="none" stroke="#FF7A2A" stroke-width="6" stroke-dasharray="27.8 100" stroke-dashoffset="-35.4"/>
+              <circle cx="21" cy="21" r="15.915" fill="none" stroke="#F6CE3D" stroke-width="6" stroke-dasharray="22.5 100" stroke-dashoffset="-63.2"/>
+              <circle cx="21" cy="21" r="15.915" fill="none" stroke="#6B8E23" stroke-width="6" stroke-dasharray="14.3 100" stroke-dashoffset="-85.7"/>
+            </svg>
+            <div class="donut-center">
+              <div class="donut-total-num">฿883K</div>
+              <div class="donut-total-label">รวม</div>
+            </div>
+          </div>
+          <div class="legend">
+            <div class="legend-row"><div class="legend-left"><span class="legend-dot" style="background: #EF5B0C;"></span>เพจ Aroma</div><span class="legend-val">฿312,500</span></div>
+            <div class="legend-row"><div class="legend-left"><span class="legend-dot" style="background: #FF7A2A;"></span>เพจ Beauty</div><span class="legend-val">฿245,800</span></div>
+            <div class="legend-row"><div class="legend-left"><span class="legend-dot" style="background: #F6CE3D;"></span>เพจ Care</div><span class="legend-val">฿198,400</span></div>
+            <div class="legend-row"><div class="legend-left"><span class="legend-dot" style="background: #6B8E23;"></span>เพจ Dream</div><span class="legend-val">฿126,767</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="grid-1-1">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+          <div>
+            <div class="card-title">แนวโน้มรายสัปดาห์</div>
+            <div class="card-subtitle">5 สัปดาห์ล่าสุด</div>
+          </div>
+          <span class="badge" style="background: var(--olive-soft); color: var(--olive-d);">↑ +12.4%</span>
+        </div>
+        <div class="line-chart-wrap">
+          <svg class="line-chart" viewBox="0 0 500 200" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="orangeGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#EF5B0C" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#EF5B0C" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- Grid lines -->
+            <line x1="0" y1="50" x2="500" y2="50" stroke="#E4DEB8" stroke-dasharray="3 3"/>
+            <line x1="0" y1="100" x2="500" y2="100" stroke="#E4DEB8" stroke-dasharray="3 3"/>
+            <line x1="0" y1="150" x2="500" y2="150" stroke="#E4DEB8" stroke-dasharray="3 3"/>
+            <!-- Area -->
+            <polygon points="50,170 150,101 250,126 350,80 450,30 450,200 50,200" fill="url(#orangeGrad)"/>
+            <!-- Line -->
+            <polyline points="50,170 150,101 250,126 350,80 450,30" stroke="#EF5B0C" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Dots -->
+            <circle cx="50" cy="170" r="5" fill="white" stroke="#EF5B0C" stroke-width="3"/>
+            <circle cx="150" cy="101" r="5" fill="white" stroke="#EF5B0C" stroke-width="3"/>
+            <circle cx="250" cy="126" r="5" fill="white" stroke="#EF5B0C" stroke-width="3"/>
+            <circle cx="350" cy="80" r="5" fill="white" stroke="#EF5B0C" stroke-width="3"/>
+            <circle cx="450" cy="30" r="6" fill="#EF5B0C" stroke="white" stroke-width="3"/>
+            <!-- Labels -->
+            <text x="50" y="195" text-anchor="middle" font-family="Kanit" font-size="11" fill="#8A8278">W14</text>
+            <text x="150" y="195" text-anchor="middle" font-family="Kanit" font-size="11" fill="#8A8278">W15</text>
+            <text x="250" y="195" text-anchor="middle" font-family="Kanit" font-size="11" fill="#8A8278">W16</text>
+            <text x="350" y="195" text-anchor="middle" font-family="Kanit" font-size="11" fill="#8A8278">W17</text>
+            <text x="450" y="195" text-anchor="middle" font-family="Archivo Black" font-size="11" fill="#EF5B0C">W18</text>
+            <!-- Value labels -->
+            <text x="50" y="160" text-anchor="middle" font-family="Archivo Black" font-size="10" fill="#1A1A1A">612K</text>
+            <text x="450" y="20" text-anchor="middle" font-family="Archivo Black" font-size="10" fill="#EF5B0C">883K</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">ยอดรายวัน</div>
+        <div class="card-subtitle">รอบ อา. 26 – ส. 2 พ.ค.</div>
+        <div class="v-bars">
+          <div class="v-bar-col"><div class="v-bar-track"><div class="v-bar-fill" style="height: 58.3%;"></div></div><div class="v-bar-name">อา</div></div>
+          <div class="v-bar-col"><div class="v-bar-track"><div class="v-bar-fill" style="height: 84.4%;"></div></div><div class="v-bar-name">จ</div></div>
+          <div class="v-bar-col"><div class="v-bar-track"><div class="v-bar-fill" style="height: 92.9%;"></div></div><div class="v-bar-name">อ</div></div>
+          <div class="v-bar-col"><div class="v-bar-track"><div class="v-bar-fill" style="height: 79.5%;"></div></div><div class="v-bar-name">พ</div></div>
+          <div class="v-bar-col"><div class="v-bar-track"><div class="v-bar-fill peak" style="height: 100%;"></div></div><div class="v-bar-name">พฤ</div></div>
+          <div class="v-bar-col"><div class="v-bar-track"><div class="v-bar-fill" style="height: 73.5%;"></div></div><div class="v-bar-name">ศ</div></div>
+          <div class="v-bar-col"><div class="v-bar-track"><div class="v-bar-fill" style="height: 35%;"></div></div><div class="v-bar-name">ส</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Deals -->
+    <div class="card table-card">
+      <div class="table-head">
+        <div>
+          <div class="card-title">🏆 Top 10 ดีลของสัปดาห์</div>
+          <div class="card-subtitle">เรียงตามยอดสูงสุด</div>
+        </div>
+        <button class="btn btn-ghost" style="padding: 8px 14px; font-size: 12px;">ดูทั้งหมด →</button>
+      </div>
+      <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>รหัสดีล</th>
+            <th>เซลล์</th>
+            <th>เพจ</th>
+            <th>วันที่</th>
+            <th class="right">ยอด (฿)</th>
+            <th class="center">สถานะ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">01</td><td class="mono">D-2401</td><td><span class="sale-chip"><span class="sale-mini">อ</span>อุ๋ม</span></td><td>เพจ Aroma</td><td class="mono">28 เม.ย.</td><td class="right">89,500</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">02</td><td class="mono">D-2402</td><td><span class="sale-chip"><span class="sale-mini">ส</span>ส้ม</span></td><td>เพจ Beauty</td><td class="mono">29 เม.ย.</td><td class="right">76,200</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">03</td><td class="mono">D-2403</td><td><span class="sale-chip"><span class="sale-mini">จ</span>จุ๋ม</span></td><td>เพจ Care</td><td class="mono">30 เม.ย.</td><td class="right">65,800</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">04</td><td class="mono">D-2404</td><td><span class="sale-chip"><span class="sale-mini">อ</span>อุ๋ม</span></td><td>เพจ Aroma</td><td class="mono">01 พ.ค.</td><td class="right">58,900</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">05</td><td class="mono">D-2405</td><td><span class="sale-chip"><span class="sale-mini">ส</span>ส้ม</span></td><td>เพจ Dream</td><td class="mono">27 เม.ย.</td><td class="right">52,400</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">06</td><td class="mono">D-2406</td><td><span class="sale-chip"><span class="sale-mini">ก</span>กรีน</span></td><td>เพจ Beauty</td><td class="mono">28 เม.ย.</td><td class="right">48,200</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">07</td><td class="mono">D-2407</td><td><span class="sale-chip"><span class="sale-mini">จ</span>จุ๋ม</span></td><td>เพจ Care</td><td class="mono">02 พ.ค.</td><td class="right">45,600</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">08</td><td class="mono">D-2408</td><td><span class="sale-chip"><span class="sale-mini">บ</span>เบล</span></td><td>เพจ Aroma</td><td class="mono">29 เม.ย.</td><td class="right">42,800</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">09</td><td class="mono">D-2409</td><td><span class="sale-chip"><span class="sale-mini">ม</span>เมย์</span></td><td>เพจ Dream</td><td class="mono">30 เม.ย.</td><td class="right">38,500</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+          <tr><td class="mono">10</td><td class="mono">D-2410</td><td><span class="sale-chip"><span class="sale-mini">อ</span>อุ๋ม</span></td><td>เพจ Beauty</td><td class="mono">01 พ.ค.</td><td class="right">36,200</td><td class="center"><span class="status-pill">✓ ปิดแล้ว</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAGE: INPUT ============ -->
+  <section id="page-input" class="page">
+    <h2 class="page-title">กรอกยอดขายรายเดือน</h2>
+    <p class="page-subtitle">หน้าฟอร์มสำหรับเซลล์ลงข้อมูล (Mock Preview)</p>
+
+    <div class="input-grid">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+          <div>
+            <div class="card-title">ลงรายการขายใหม่</div>
+            <div class="card-subtitle">กรอกข้อมูลให้ครบทุกช่อง</div>
+          </div>
+          <span class="badge">Sheet: ยอดขาย_2569</span>
+        </div>
+
+        <form class="form-grid" onsubmit="return saveSale(event)">
+          <div class="field">
+            <label>📅 วันที่ขาย</label>
+            <input type="date" value="2026-05-02">
+          </div>
+          <div class="field">
+            <label>👤 เซลล์</label>
+            <select><option>อุ๋ม</option><option selected>ส้ม</option><option>จุ๋ม</option><option>กรีน</option><option>เบล</option><option>เมย์</option></select>
+          </div>
+          <div class="field">
+            <label>📦 เพจ</label>
+            <select><option>เพจ Aroma</option><option selected>เพจ Beauty</option><option>เพจ Care</option><option>เพจ Dream</option></select>
+          </div>
+          <div class="field">
+            <label>💰 ยอดขาย (บาท)</label>
+            <input type="number" placeholder="0.00" id="amountInput">
+          </div>
+          <div class="field full">
+            <label>🧾 ชื่อลูกค้า</label>
+            <input type="text" placeholder="เช่น คุณนภา ก.">
+          </div>
+          <div class="field full">
+            <label>📝 หมายเหตุ (ถ้ามี)</label>
+            <textarea rows="2" placeholder="เช่น ลูกค้าซื้อซ้ำ / โปรโมชันพิเศษ"></textarea>
+          </div>
+          <div class="full" style="display: flex; gap: 10px; align-items: center; padding-top: 12px; border-top: 2px dashed var(--cream-2);">
+            <button type="submit" class="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              บันทึกรายการ
+            </button>
+            <button type="reset" class="btn btn-ghost">ล้างฟอร์ม</button>
+            <span id="toast"></span>
+          </div>
+        </form>
+      </div>
+
+      <div>
+        <div class="tip-card">
+          <div class="tip-title">⚡ เคล็ดลับการกรอก</div>
+          <ul class="tip-list">
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              เลือกเซลล์/เพจจาก Dropdown เพื่อลดพิมพ์ผิด
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              ระบบคำนวณสัปดาห์/เดือนให้อัตโนมัติ
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              รอบรายงาน: อา. – ส. ตัดรอบเสาร์เย็น
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              กรอกผ่านมือถือได้ ไม่ต้องเปิดคอม
+            </li>
+          </ul>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-label">รายการล่าสุดของคุณ</div>
+          <div class="stat-card-value">94</div>
+          <div class="stat-card-sub">บิล ในสัปดาห์นี้</div>
+          <div class="stat-card-divider"></div>
+          <div class="stat-card-row">
+            <span style="opacity: 0.85;">ยอดรวมของฉัน</span>
+            <span style="font-family: 'Archivo Black', sans-serif;">฿245,800</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent inputs -->
+    <div class="card table-card" style="margin-top: 20px;">
+      <div class="table-head">
+        <div>
+          <div class="card-title">รายการที่เพิ่งกรอก</div>
+          <div class="card-subtitle">5 รายการล่าสุดในระบบ</div>
+        </div>
+      </div>
+      <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr><th>วันที่</th><th>เซลล์</th><th>เพจ</th><th>ลูกค้า</th><th class="right">ยอด (฿)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">02 พ.ค. 69</td><td><span class="sale-chip"><span class="sale-mini">ส</span>ส้ม</span></td><td>เพจ Beauty</td><td>คุณนภา ก.</td><td class="right">18,500</td></tr>
+          <tr><td class="mono">02 พ.ค. 69</td><td><span class="sale-chip"><span class="sale-mini">อ</span>อุ๋ม</span></td><td>เพจ Aroma</td><td>คุณวิชัย ส.</td><td class="right">24,800</td></tr>
+          <tr><td class="mono">01 พ.ค. 69</td><td><span class="sale-chip"><span class="sale-mini">จ</span>จุ๋ม</span></td><td>เพจ Care</td><td>คุณสุดา ม.</td><td class="right">12,400</td></tr>
+          <tr><td class="mono">01 พ.ค. 69</td><td><span class="sale-chip"><span class="sale-mini">อ</span>อุ๋ม</span></td><td>เพจ Aroma</td><td>คุณอนุชา พ.</td><td class="right">36,200</td></tr>
+          <tr><td class="mono">30 เม.ย. 69</td><td><span class="sale-chip"><span class="sale-mini">ก</span>กรีน</span></td><td>เพจ Beauty</td><td>คุณมาลี ท.</td><td class="right">8,400</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAGE: AI ANALYSIS ============ -->
+  <section id="page-ai" class="page">
+    <h2 class="page-title">AI Weekly Analysis</h2>
+    <p class="page-subtitle">รอบ อาทิตย์ 26 เม.ย. – เสาร์ 2 พ.ค. 2569</p>
+
+    <div class="ai-action-bar">
+      <div class="ai-action-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 13.9 8.1 19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>
+      </div>
+      <div class="ai-action-text">
+        <div class="ai-action-title">AI วิเคราะห์ (เชิงโค้ช)</div>
+        <div class="ai-action-sub">ภาษาบวก ไม่ตำหนิทีม • อ่านและปรับก่อนส่งได้เสมอ</div>
+      </div>
+      <button class="btn btn-primary" onclick="genAI(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 13.9 8.1 19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>
+        Generate AI
+      </button>
+      <button class="btn btn-ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy Prompt
+      </button>
+    </div>
+
+    <!-- Overview -->
+    <div class="ai-overview">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; position: relative; z-index: 1;">
+        <span style="width: 6px; height: 6px; background: var(--orange); border-radius: 50%; animation: pulse-current 2s infinite;"></span>
+        <span style="font-family: 'Kanit', sans-serif; font-size: 12px; color: var(--orange); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;">ภาพรวมทีม</span>
+      </div>
+      <div class="ai-stats">
+        <div><div class="ai-stat-label">ยอดทีม</div><div class="ai-stat-value">฿883,467</div></div>
+        <div><div class="ai-stat-label">บิล</div><div class="ai-stat-value">94</div></div>
+        <div><div class="ai-stat-label">Conversion</div><div class="ai-stat-value">39.3%</div></div>
+        <div><div class="ai-stat-label">ดีลใหญ่ค้าง</div><div class="ai-stat-value accent">฿771K</div></div>
+      </div>
+      <div class="ai-summary">
+        <b>บทสรุป AI:</b> สัปดาห์นี้ทีมทำได้น่าพอใจ มีดีลใหญ่ค้างหลายรายการ ถ้าปิดได้ในสัปดาห์หน้าจะดันยอดทีมขึ้นได้อีกมาก
+        โฟกัสของพี่แคทควรอยู่ที่ <b>"การช่วยปิดดีลค้าง"</b> มากกว่า "การไล่ยอดใหม่"
+      </div>
+    </div>
+
+    <!-- Red Zone -->
+    <div class="zone-header">
+      <span class="zone-dot red"></span>
+      <span class="zone-title">คนที่ควรคุยก่อน</span>
+      <span class="zone-count">2 คน • ดีลค้างรวม ~6.6 แสนบาท</span>
+    </div>
+
+    <div class="person-card red">
+      <div class="person-avatar">อ</div>
+      <div class="person-body">
+        <div class="person-head">
+          <span class="person-name">อุ๋ม</span>
+          <span class="priority-badge">⚠️ Priority 7</span>
+        </div>
+        <div class="person-reason">ดีลใหญ่ค้าง 8 ดีล / รวม 559,992 บาท</div>
+        <div class="person-coach">ไปป์ไลน์แข็งแรงมาก ดีลค้างเกือบ 6 แสนสะท้อนว่าหาลูกค้าเก่ง คุยถึงระดับใกล้ปิด ประเด็นคือ "จังหวะปิด" ไม่ใช่ "ความสามารถ"</div>
+        <div class="actions-box">
+          <div class="actions-title">💬 ประเด็นที่อยากให้พี่แคทคุย</div>
+          <ul class="actions-list">
+            <li>ดีลทั้ง 8 ติดอะไรอยู่? ราคา / เงื่อนไข / รออนุมัติฝั่งลูกค้า?</li>
+            <li>มีดีลไหนที่พี่แคทช่วยปิดได้ (โทรหาลูกค้า / ส่วนลดพิเศษ)?</li>
+            <li>ตั้งเป้าปิดอย่างน้อย 3 ดีลในสัปดาห์หน้า</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="person-card red">
+      <div class="person-avatar">ม</div>
+      <div class="person-body">
+        <div class="person-head">
+          <span class="person-name">เมย์</span>
+          <span class="priority-badge">⚠️ Priority 6</span>
+        </div>
+        <div class="person-reason">เปิดบิล 15 / ปิด 2 → Conversion 11.8% • ดีลค้าง 100,022.50 บาท</div>
+        <div class="person-coach">ขยันเปิดบิลมาก (15 บิลถือว่าสูง) แต่ Conversion ต่ำกว่าค่าเฉลี่ยทีม "ต้นทาง" แข็ง แต่ "ปลายทาง" ยังไม่นิ่ง อาจเป็นเรื่องการ qualify ลูกค้าหรือเทคนิคการปิด</div>
+        <div class="actions-box">
+          <div class="actions-title">💬 ประเด็นที่อยากให้พี่แคทคุย</div>
+          <ul class="actions-list">
+            <li>ลูกค้าที่ไม่ปิดส่วนใหญ่ติดเรื่องอะไร? (ราคา / สินค้า / timing)</li>
+            <li>ลองให้เมย์ shadow ส้ม 1 สัปดาห์ ดูเทคนิคการปิด</li>
+            <li>ดีลค้าง 1 แสนบาท เร่งปิดได้ก่อนสิ้นเดือนไหม?</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Yellow Zone -->
+    <div class="zone-header">
+      <span class="zone-dot yellow"></span>
+      <span class="zone-title">ติดตามรองลงมา</span>
+      <span class="zone-count">3 คน</span>
+    </div>
+
+    <div class="grid-1-1" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-bottom: 0;">
+      <div class="person-card yellow" style="margin-bottom: 0;">
+        <div class="person-avatar">ก</div>
+        <div class="person-body">
+          <div class="person-head">
+            <span class="person-name">กรีน</span>
+            <span class="priority-badge">Priority 3</span>
+          </div>
+          <div class="person-reason">ยอดลดลง 37.6% จากสัปดาห์ก่อน</div>
+          <div class="person-coach">ยอดลดเป็นสัญญาณ ไม่ใช่ปัญหา อาจเป็นจังหวะลูกค้า / ดีลใหญ่ที่เคยปิดสัปดาห์ที่แล้ว ยังไม่ต้องตื่นเต้น แต่เช็คให้แน่ใจว่าไม่ใช่ trend</div>
+        </div>
+      </div>
+
+      <div class="person-card yellow" style="margin-bottom: 0;">
+        <div class="person-avatar">จ</div>
+        <div class="person-body">
+          <div class="person-head">
+            <span class="person-name">จุ๋ม</span>
+            <span class="priority-badge">Priority 2</span>
+          </div>
+          <div class="person-reason">ดีลใหญ่ค้าง 111,200 บาท / ✨ ยอดโต +44.4%</div>
+          <div class="person-coach">อยู่ในจังหวะดี ยอดโตชัดเจน ดีลค้างถือเป็น "โอกาส" ไม่ใช่ปัญหา ปิดได้จะเป็นเดือนทอง</div>
+        </div>
+      </div>
+
+      <div class="person-card yellow" style="margin-bottom: 0;">
+        <div class="person-avatar">บ</div>
+        <div class="person-body">
+          <div class="person-head">
+            <span class="person-name">เบล</span>
+            <span class="priority-badge">Priority 2</span>
+          </div>
+          <div class="person-reason">ยอดลดลง 37.9% จากสัปดาห์ก่อน</div>
+          <div class="person-coach">ระดับใกล้กรีน ยังไม่วิกฤต แต่ถ้าลด 2 สัปดาห์ติดต้องคุยเชิงลึก</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Green Zone -->
+    <div class="zone-header">
+      <span class="zone-dot green"></span>
+      <span class="zone-title">ผ่าน / ไม่มีประเด็นเร่งด่วน</span>
+      <span class="zone-count">1 คน</span>
+    </div>
+
+    <div class="person-card green">
+      <div class="person-avatar">ส</div>
+      <div class="person-body">
+        <div class="person-head">
+          <span class="person-name">ส้ม</span>
+          <span class="priority-badge">🏆 Top Performer</span>
+        </div>
+        <div class="person-reason">✨ ยอดโต +48% • Conversion 52.9% (สูงสุดในทีม)</div>
+        <div class="person-coach">อยู่ในฟอร์มที่ดีมาก ไม่ต้องคุยเชิงแก้ไข แต่อยากให้พี่แคทชมในที่ประชุม และพิจารณาให้ส้มเป็น "พี่เลี้ยง" สอนเทคนิคปิดให้เมย์</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAGE: LINE SUMMARY ============ -->
+  <section id="page-line" class="page">
+    <h2 class="page-title">สรุปสำหรับ LINE</h2>
+    <p class="page-subtitle">ข้อความพร้อมส่งกลุ่มทีม • Phase ปัจจุบันยัง Manual</p>
+
+    <div class="line-grid">
+      <!-- Phone Preview -->
+      <div>
+        <div style="font-family: 'Kanit', sans-serif; font-size: 11px; color: var(--gray); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em;">📱 Preview ใน LINE</div>
+        <div class="phone-frame">
+          <div class="line-chat-head">
+            <div class="group-avatar">ทีม</div>
+            <div class="group-info">
+              <div class="group-name">SalesTeam 2569</div>
+              <div class="group-members">สมาชิก 8 คน</div>
+            </div>
+            <div class="online-dot"></div>
+          </div>
+
+          <div class="chat-msg">
+            <div class="chat-avatar">แค</div>
+            <div class="chat-bubble-wrap">
+              <div class="chat-meta">พี่แคท • 08:15</div>
+              <div class="chat-bubble">📊 สรุปยอดสัปดาห์ 26 เม.ย. - 2 พ.ค. 69
+
+💰 ยอดทีม: 883,467 บาท
+🧾 บิล: 94 ใบ
+🎯 Conversion: 39.3%
+
+🔴 คุยก่อน:
+• อุ๋ม - ดีลค้าง 8 ดีล (5.6 แสน)
+  → ช่วยปิดดีลใหญ่
+• เมย์ - Conversion 11.8% ต่ำกว่าทีม
+  → ให้ shadow ส้ม 1 สัปดาห์
+
+🟡 ติดตาม:
+• กรีน ยอด -37.6%
+• เบล ยอด -37.9%
+• จุ๋ม ดีลค้าง 1.1 แสน (แต่ยอดโต 44%)
+
+🟢 ผ่าน:
+• ส้ม ยอดโต 48%, Conversion 52.9%
+  → ชมหน้าทีม + ให้เป็นพี่เลี้ยงเมย์
+
+💡 โฟกัสสัปดาห์หน้า:
+ช่วยปิดดีลค้างของอุ๋ม + จุ๋ม
+รวม ~6.7 แสนบาท</div>
+              <div class="chat-status">อ่านแล้ว 7 / 8</div>
+            </div>
+          </div>
+
+          <div class="typing-row">
+            <div class="typing-avatar"></div>
+            <div class="typing-bubble">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right panel -->
+      <div>
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div class="card-title">ข้อความสำหรับ Copy</div>
+            <span class="badge">14 บรรทัด</span>
+          </div>
+          <div class="code-block scrollbar-thin" id="lineCode">📊 สรุปยอดสัปดาห์ 26 เม.ย. - 2 พ.ค. 69
+
+💰 ยอดทีม: 883,467 บาท
+🧾 บิล: 94 ใบ
+🎯 Conversion: 39.3%
+
+🔴 คุยก่อน:
+• อุ๋ม - ดีลค้าง 8 ดีล (5.6 แสน)
+  → ช่วยปิดดีลใหญ่
+• เมย์ - Conversion 11.8% ต่ำกว่าทีม
+  → ให้ shadow ส้ม 1 สัปดาห์
+
+🟡 ติดตาม:
+• กรีน ยอด -37.6%
+• เบล ยอด -37.9%
+• จุ๋ม ดีลค้าง 1.1 แสน (แต่ยอดโต 44%)
+
+🟢 ผ่าน:
+• ส้ม ยอดโต 48%, Conversion 52.9%
+  → ชมหน้าทีม + ให้เป็นพี่เลี้ยงเมย์
+
+💡 โฟกัสสัปดาห์หน้า:
+ช่วยปิดดีลค้างของอุ๋ม + จุ๋ม
+รวม ~6.7 แสนบาท</div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+            <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="copyLine(this)" id="copyBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              คัดลอกข้อความ
+            </button>
+            <button class="btn btn-success" style="width: 100%; justify-content: center;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              ส่งเข้า LINE (Phase 4)
+            </button>
+          </div>
+
+          <div class="info-box">
+            <div class="info-box-title">⚠️ โหมดปัจจุบัน: Manual</div>
+            <div class="info-box-text">
+              ตอนนี้ต้อง Copy ข้อความไปวางใน LINE ด้วยตัวเอง<br>
+              <b>Phase 4</b> จะส่งอัตโนมัติทุกเช้าวันจันทร์ 08:00 น.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAGE: ROADMAP ============ -->
+  <section id="page-roadmap" class="page">
+    <h2 class="page-title">Phase Roadmap</h2>
+    <p class="page-subtitle">แผนการพัฒนาระบบ 5 เฟส</p>
+
+    <div class="filter-bar" style="margin-bottom: 24px;">
+      <span class="filter-label">สถานะ:</span>
+      <span class="status-pill-2 done">✓ เสร็จแล้ว</span>
+      <span class="status-pill-2 current">⏳ กำลังทำ</span>
+      <span class="status-pill-2 next">→ ถัดไป</span>
+      <span class="status-pill-2 future">○ อนาคต</span>
+      <span class="filter-meta">รวม 5 Phases</span>
+    </div>
+
+    <div class="timeline">
+      <!-- Phase 1 -->
+      <div class="timeline-item">
+        <div class="timeline-dot done">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="timeline-card">
+          <div class="timeline-head">
+            <div>
+              <div class="timeline-title-row">
+                <span class="timeline-title">Phase 1: Core System</span>
+                <span class="status-pill-2 done">✓ เสร็จแล้ว</span>
+              </div>
+              <div class="timeline-desc">ระบบกรอกยอดขาย + Dashboard + Filter + KPI 6 ใบ + ตาราง Top 10</div>
+            </div>
+            <div class="timeline-time">
+              <div class="timeline-time-label">ระยะเวลา</div>
+              <div class="timeline-time-value">เสร็จแล้ว</div>
+            </div>
+          </div>
+          <div class="timeline-items">
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Sheet กรอกยอดขายรายเดือน</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Dashboard 6 KPI</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Filter (วัน/เซลล์/เพจ)</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>ตาราง Top 10 ดีล</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Business Rule อา.–ส.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 2A -->
+      <div class="timeline-item">
+        <div class="timeline-dot done">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="timeline-card">
+          <div class="timeline-head">
+            <div>
+              <div class="timeline-title-row">
+                <span class="timeline-title">Phase 2A: AI Manual Mode</span>
+                <span class="status-pill-2 done">✓ เสร็จแล้ว</span>
+              </div>
+              <div class="timeline-desc">AI Weekly Analysis แบบ copy/paste prompt ไป ChatGPT/Claude</div>
+            </div>
+            <div class="timeline-time">
+              <div class="timeline-time-label">ระยะเวลา</div>
+              <div class="timeline-time-value">เสร็จแล้ว</div>
+            </div>
+          </div>
+          <div class="timeline-items">
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>AI_Analysis sheet</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>AI_Prompt + JSON</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>AI_LINE_Summary</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Config_AI threshold</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#6B8E23" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Prompt v4.0.4 ภาษาโค้ช</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 2B -->
+      <div class="timeline-item">
+        <div class="timeline-dot current">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="timeline-card current">
+          <div class="timeline-head">
+            <div>
+              <div class="timeline-title-row">
+                <span class="timeline-title">Phase 2B: One-Click AI</span>
+                <span class="status-pill-2 current">⏳ กำลังทำ</span>
+              </div>
+              <div class="timeline-desc">ปุ่ม Generate AI กดเดียว ระบบเรียก ChatGPT API ให้อัตโนมัติ</div>
+            </div>
+            <div class="timeline-time">
+              <div class="timeline-time-label">ระยะเวลา</div>
+              <div class="timeline-time-value">1–2 สัปดาห์</div>
+            </div>
+          </div>
+          <div class="timeline-items">
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#EF5B0C" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Apps Script ปุ่ม Generate</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#EF5B0C" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>ChatGPT API integration</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#EF5B0C" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>แสดงผลใน sheet ทันที</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#EF5B0C" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>ลด workflow manual</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#EF5B0C" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>ค่าใช้จ่ายน้อย (~ร้อยบาท/เดือน)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 3 -->
+      <div class="timeline-item">
+        <div class="timeline-dot next">3</div>
+        <div class="timeline-card">
+          <div class="timeline-head">
+            <div>
+              <div class="timeline-title-row">
+                <span class="timeline-title">Phase 3: Zaapi Integration</span>
+                <span class="status-pill-2 next">→ ถัดไป</span>
+              </div>
+              <div class="timeline-desc">ดึง order จาก Zaapi อัตโนมัติ ทีมไม่ต้องกรอกมือ</div>
+            </div>
+            <div class="timeline-time">
+              <div class="timeline-time-label">ระยะเวลา</div>
+              <div class="timeline-time-value">2–3 สัปดาห์</div>
+            </div>
+          </div>
+          <div class="timeline-items">
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Zaapi API integration</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Auto sync order ทุก 15 นาที</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Map field กับ sheet</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Alert เมื่อ sync fail</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Backup manual mode</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 4 -->
+      <div class="timeline-item">
+        <div class="timeline-dot next">4</div>
+        <div class="timeline-card">
+          <div class="timeline-head">
+            <div>
+              <div class="timeline-title-row">
+                <span class="timeline-title">Phase 4: Auto LINE Alert</span>
+                <span class="status-pill-2 next">→ ถัดไป</span>
+              </div>
+              <div class="timeline-desc">ส่งสรุปอัตโนมัติทุกเช้าจันทร์ 08:00 น. เข้ากลุ่มทีม</div>
+            </div>
+            <div class="timeline-time">
+              <div class="timeline-time-label">ระยะเวลา</div>
+              <div class="timeline-time-value">1 สัปดาห์</div>
+            </div>
+          </div>
+          <div class="timeline-items">
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>LINE Notify integration</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Schedule trigger 08:00 จันทร์</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Customizable template</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Alert ดีลใหญ่ค้าง</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Personal DM เซลล์</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 5 -->
+      <div class="timeline-item">
+        <div class="timeline-dot">5</div>
+        <div class="timeline-card">
+          <div class="timeline-head">
+            <div>
+              <div class="timeline-title-row">
+                <span class="timeline-title">Phase 5: Web App</span>
+                <span class="status-pill-2 future">○ อนาคต</span>
+              </div>
+              <div class="timeline-desc">Web App ตาม Mockup สำหรับเซลล์ใช้บนมือถือ</div>
+            </div>
+            <div class="timeline-time">
+              <div class="timeline-time-label">ระยะเวลา</div>
+              <div class="timeline-time-value">4–6 สัปดาห์</div>
+            </div>
+          </div>
+          <div class="timeline-items">
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>React Web App</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Login + Role</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Mobile-first UI</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Real-time sync</div>
+            <div class="timeline-item-row"><svg viewBox="0 0 24 24" fill="none" stroke="#C9C2B0" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>Notification system</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recommendation -->
+    <div class="recommend-box">
+      <div class="recommend-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        คำแนะนำ
+      </div>
+      <div class="recommend-title">เริ่ม Phase 2B ก่อนคุ้มที่สุด</div>
+      <div class="recommend-text">
+        ใช้เวลาพัฒนาน้อยที่สุด (1–2 สัปดาห์) แต่ตัด workflow manual ของผู้บริหารออกได้ทันที
+        ค่าใช้จ่าย ChatGPT API ประมาณเดือนละไม่กี่ร้อยบาท
+      </div>
+      <button class="btn" style="background: white; color: var(--orange); position: relative; z-index: 1;">
+        อนุมัติ Phase 2B
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ SCRIPT ============ -->
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const pages = document.querySelectorAll('.page');
+
+    function showPage(id) {
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.page === id));
+      pages.forEach(p => p.classList.toggle('active', p.id === 'page-' + id));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    tabs.forEach(t => t.addEventListener('click', () => {
+      const id = t.dataset.page;
+      window.location.hash = id;
+      showPage(id);
+    }));
+
+    // initial route
+    const initial = (window.location.hash || '#dashboard').replace('#', '');
+    if (document.getElementById('page-' + initial)) showPage(initial);
+
+    window.addEventListener('hashchange', () => {
+      const id = (window.location.hash || '#dashboard').replace('#', '');
+      if (document.getElementById('page-' + id)) showPage(id);
+    });
+
+    // Save form (mock)
+    function saveSale(e) {
+      e.preventDefault();
+      const toast = document.getElementById('toast');
+      toast.innerHTML = '<span class="toast">✓ บันทึกแล้ว (Mock)</span>';
+      setTimeout(() => { toast.innerHTML = ''; }, 2400);
+      e.target.reset();
+      return false;
+    }
+
+    // AI generate (mock)
+    function genAI(btn) {
+      const original = btn.innerHTML;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> กำลังวิเคราะห์...';
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.disabled = false;
+      }, 1500);
+    }
+
+    // Copy LINE message
+    function copyLine(btn) {
+      const text = document.getElementById('lineCode').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> คัดลอกแล้ว!';
+        btn.style.background = 'var(--olive)';
+        btn.style.boxShadow = '0 4px 0 var(--olive-d)';
+        setTimeout(() => {
+          btn.innerHTML = orig;
+          btn.style.background = '';
+          btn.style.boxShadow = '';
+        }, 1800);
+      }).catch(() => {
+        alert('คัดลอกไม่สำเร็จ ลองอีกครั้ง');
+      });
+    }
+
+    // Spinner animation
+    const style = document.createElement('style');
+    style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(style);
+  </script>
+</body>
+</html>

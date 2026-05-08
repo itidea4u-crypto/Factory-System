@@ -1,0 +1,2175 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบเบิกเงินสดย่อย — Factory System</title>
+
+  <!-- Tailwind CSS via CDN (play.tailwindcss.com runtime) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- IBM Plex Sans Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- React 18 + ReactDOM (UMD) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel standalone (compiles JSX in browser) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    html, body { font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; background: #FAFAF9; }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; color: #57534e; font-size: 14px; z-index: 100; background: #FAFAF9; }
+    #loading.gone { display: none; }
+    #loading .spinner {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 3px solid #e7e5e4; border-top-color: #047857;
+      animation: spin 0.8s linear infinite; margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading .text { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    #loading .small { font-size: 11px; color: #a8a29e; }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="text">
+      <div class="spinner"></div>
+      <div>กำลังโหลดระบบ...</div>
+      <div class="small">ครั้งแรกอาจใช้เวลาสักครู่</div>
+    </div>
+  </div>
+  <div id="root"></div>
+
+  <!-- App code (compiled by Babel at runtime) -->
+  <script type="text/babel" data-presets="react">
+/* ─────────────────────────────────────────────────────────────
+ * ระบบเบิกเงินสดย่อย — Standalone version for GitHub Pages
+ *   - localStorage แทน window.storage
+ *   - Inline SVG icons แทน lucide-react
+ *   - React 18 UMD + Babel standalone in browser
+ * ───────────────────────────────────────────────────────────── */
+
+// React hooks ที่ใช้
+const { useState, useEffect, useMemo, useRef } = React;
+
+// ─── localStorage shim — API เดียวกับ window.storage ของ Claude ─────────
+const _storage = {
+  async get(key) {
+    const v = localStorage.getItem(key);
+    return v === null ? null : { key, value: v, shared: false };
+  },
+  async set(key, value) {
+    try {
+      localStorage.setItem(key, value);
+      return { key, value, shared: false };
+    } catch (e) {
+      console.error("localStorage error:", e);
+      throw new Error("พื้นที่จัดเก็บเต็ม — ลองลบไฟล์แนบเก่าออกบ้าง");
+    }
+  },
+  async delete(key) {
+    localStorage.removeItem(key);
+    return { key, deleted: true, shared: false };
+  },
+  async list(prefix) {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!prefix || k.startsWith(prefix)) keys.push(k);
+    }
+    return { keys };
+  }
+};
+window.storage = _storage;
+
+// ─── Icon library — Lucide SVG paths inline ──────────────────────────
+const _Icon = ({ size = 16, className = "", strokeWidth = 2, children }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={strokeWidth}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={"lucide " + className}
+  >
+    {children}
+  </svg>
+);
+
+const PlusCircle = (p) => <_Icon {...p}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></_Icon>;
+const History = (p) => <_Icon {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></_Icon>;
+const BarChart3 = (p) => <_Icon {...p}><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></_Icon>;
+const Send = (p) => <_Icon {...p}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></_Icon>;
+const Check = (p) => <_Icon {...p}><path d="M20 6 9 17l-5-5"/></_Icon>;
+const AlertCircle = (p) => <_Icon {...p}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></_Icon>;
+const Search = (p) => <_Icon {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></_Icon>;
+const Filter = (p) => <_Icon {...p}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></_Icon>;
+const RefreshCw = (p) => <_Icon {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></_Icon>;
+const Receipt = (p) => <_Icon {...p}><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></_Icon>;
+const Wallet = (p) => <_Icon {...p}><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></_Icon>;
+const Sun = (p) => <_Icon {...p}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></_Icon>;
+const Moon = (p) => <_Icon {...p}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></_Icon>;
+const Ban = (p) => <_Icon {...p}><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></_Icon>;
+const ChevronDown = (p) => <_Icon {...p}><path d="m6 9 6 6 6-6"/></_Icon>;
+const X = (p) => <_Icon {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></_Icon>;
+const Lock = (p) => <_Icon {...p}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></_Icon>;
+const Download = (p) => <_Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></_Icon>;
+const ImageIcon = (p) => <_Icon {...p}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></_Icon>;
+const Calendar = (p) => <_Icon {...p}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></_Icon>;
+const Paperclip = (p) => <_Icon {...p}><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.93 8.83l-8.57 8.57a2 2 0 1 1-2.83-2.83l8.49-8.48"/></_Icon>;
+const FileText = (p) => <_Icon {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></_Icon>;
+const User = (p) => <_Icon {...p}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></_Icon>;
+const ChevronLeft = (p) => <_Icon {...p}><path d="m15 18-6-6 6-6"/></_Icon>;
+const ChevronRight = (p) => <_Icon {...p}><path d="m9 18 6-6-6-6"/></_Icon>;
+
+// ─── ค่าคงที่ตามสเปคใหม่ ─────────────────────────────────────────
+const CATEGORIES = [
+  "ซื้อของหน้าร้าน",
+  "ค่าน้ำมัน",
+  "ค่าวัสดุผลิต",
+  "ค่าอุปกรณ์ช่าง",
+  "ค่าขนส่ง",
+  "ค่าแรง / ค่าจ้าง",
+  "ค่าอาหาร / น้ำ",
+  "ทีมมีเดีย",
+  "อื่น ๆ"
+];
+
+const SHIFTS = ["เช้า", "เย็น"];
+
+// 3 ตัวเลือกเท่านั้นตามสเปคล่าสุด
+const PAYMENT_METHODS = ["จ่ายเงินสด", "โอน/สแกน", "พี่ X โอนเอง"];
+const X_PAYMENT = "พี่ X โอนเอง";
+
+// ─── ทีมมีเดีย ─────
+const MEDIA_CATEGORY = "ทีมมีเดีย";
+const MEDIA_TEAMS = ["ต่อ", "อู๋", "ต่อ + อู๋", "อื่น ๆ"];
+const MEDIA_SUBTYPES = ["ค่าน้ำมัน", "ค่าทางด่วน", "ค่าอื่น ๆ"];
+const MEDIA_FUEL = "ค่าน้ำมัน";
+
+const STORAGE_KEY_V3 = "petty_cash_v3";
+const STORAGE_KEY_V2 = "petty_cash_v2";
+const STORAGE_KEY_V1 = "petty_cash_v1";
+const ATT_KEY_PREFIX = "pcatt_";
+
+// แปลงชื่อวิธีจ่ายจากเวอร์ชันเก่า
+const PAYMENT_METHOD_MIGRATION = {
+  "เงินสดพี่ญ": "จ่ายเงินสด",
+  "โอนจากบัญชีพี่ญ": "โอน/สแกน",
+  "บัตร / QR พี่ญ": "โอน/สแกน",
+  "พี่ X โอนเอง": "พี่ X โอนเอง",
+  "อื่น ๆ": "จ่ายเงินสด"
+};
+const migratePM = (old) => PAYMENT_METHOD_MIGRATION[old] || old || "จ่ายเงินสด";
+
+// ขนาดไฟล์สูงสุด ~4.5MB (storage 5MB ต่อ key)
+const MAX_FILE_BYTES = 4.5 * 1024 * 1024;
+const COMPRESS_MAX_W = 1600;
+const COMPRESS_QUALITY = 0.85;
+const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+
+// ─── Helpers ─────────────────────────────────────────────────────
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const fmt = (n) => new Intl.NumberFormat("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+const fmtInt = (n) => new Intl.NumberFormat("th-TH").format(n || 0);
+const generateId = () => `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const generateAttId = () => `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+const formatThaiDate = (isoDate) => {
+  if (!isoDate) return "";
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return `${d} ${THAI_MONTHS[m - 1]} ${y + 543}`;
+};
+
+function computeSummary(transactions, filterFn) {
+  const inScope = transactions.filter(t => !t.cancelled && filterFn(t));
+  const yPaid = inScope.filter(t => t.paymentMethod !== X_PAYMENT);
+  const xPaid = inScope.filter(t => t.paymentMethod === X_PAYMENT);
+  return {
+    items: inScope,
+    yItems: yPaid,
+    xItems: xPaid,
+    total: yPaid.reduce((s, t) => s + t.amount, 0),
+    morning: yPaid.filter(t => t.shift === "เช้า").reduce((s, t) => s + t.amount, 0),
+    evening: yPaid.filter(t => t.shift === "เย็น").reduce((s, t) => s + t.amount, 0),
+    xTotal: xPaid.reduce((s, t) => s + t.amount, 0),
+    count: inScope.length,
+    yCount: yPaid.length,
+    xCount: xPaid.length
+  };
+}
+
+// สรุปยอดทีมมีเดีย (เฉพาะที่ไม่ใช่พี่ X จ่ายเอง)
+function computeMediaSummary(items) {
+  const media = items.filter(t => t.category === MEDIA_CATEGORY && t.paymentMethod !== X_PAYMENT);
+  const installer = items.filter(t => t.category !== MEDIA_CATEGORY && t.paymentMethod !== X_PAYMENT);
+  const sub = { fuel: 0, toll: 0, other: 0 };
+  let totalDistance = 0;
+  media.forEach(t => {
+    if (t.mediaSubType === MEDIA_FUEL) sub.fuel += t.amount;
+    else if (t.mediaSubType === "ค่าทางด่วน") sub.toll += t.amount;
+    else sub.other += t.amount;
+    if (t.mileage && t.mileage.distance) totalDistance += t.mileage.distance;
+  });
+  return {
+    media,
+    installer,
+    mediaTotal: media.reduce((s, t) => s + t.amount, 0),
+    installerTotal: installer.reduce((s, t) => s + t.amount, 0),
+    mediaCount: media.length,
+    installerCount: installer.length,
+    sub,
+    totalDistance
+  };
+}
+
+// ─── ระบบไฟล์แนบ ─────────────────────────────────────────────────
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > COMPRESS_MAX_W) {
+          height = (height * COMPRESS_MAX_W) / width;
+          width = COMPRESS_MAX_W;
+        }
+        c.width = width;
+        c.height = height;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        c.toBlob(blob => {
+          if (!blob) return reject(new Error('compress failed'));
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = reject;
+          r.readAsDataURL(blob);
+        }, 'image/jpeg', COMPRESS_QUALITY);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function saveAttachment(file) {
+  let dataUrl;
+  if (file.type.startsWith('image/')) {
+    dataUrl = await compressImage(file);
+  } else if (file.type === 'application/pdf') {
+    dataUrl = await fileToDataUrl(file);
+  } else {
+    throw new Error('ไฟล์ประเภทนี้ไม่รองรับ (รองรับ JPG, PNG, PDF)');
+  }
+
+  const sizeBytes = Math.ceil(dataUrl.length * 0.75);
+  if (sizeBytes > MAX_FILE_BYTES) {
+    throw new Error(`ไฟล์ใหญ่เกินไป (${(sizeBytes / 1024 / 1024).toFixed(1)}MB) — สูงสุด ~4.5MB`);
+  }
+
+  const id = generateAttId();
+  await window.storage.set(`${ATT_KEY_PREFIX}${id}`, dataUrl);
+  return {
+    id,
+    name: file.name,
+    type: file.type === 'image/png' ? 'image/jpeg' : file.type, // PNG ถูกแปลงเป็น JPEG ตอนบีบ
+    sizeKB: Math.round(sizeBytes / 1024)
+  };
+}
+
+async function loadAttachment(id) {
+  try {
+    const r = await window.storage.get(`${ATT_KEY_PREFIX}${id}`);
+    return r ? r.value : null;
+  } catch (e) { return null; }
+}
+
+// ─── Main App ────────────────────────────────────────────────────
+function PettyCashSystem() {
+  const [tab, setTab] = useState("add");
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [previewCanvas, setPreviewCanvas] = useState(null);
+  const [previewFilename, setPreviewFilename] = useState("");
+  const [viewingAtts, setViewingAtts] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      // ลำดับ: v3 → v2 (migrate) → v1 (migrate)
+      try {
+        const r = await window.storage.get(STORAGE_KEY_V3);
+        if (r) {
+          const data = JSON.parse(r.value);
+          setTransactions(data.transactions || []);
+          setLoading(false);
+          return;
+        }
+      } catch (e) { /* ignore */ }
+
+      try {
+        const r2 = await window.storage.get(STORAGE_KEY_V2);
+        if (r2) {
+          const data = JSON.parse(r2.value);
+          const migrated = (data.transactions || []).map(t => ({
+            ...t,
+            paymentMethod: migratePM(t.paymentMethod),
+            attachments: t.attachments || []
+          }));
+          setTransactions(migrated);
+          await window.storage.set(STORAGE_KEY_V3, JSON.stringify({ transactions: migrated }));
+          setLoading(false);
+          return;
+        }
+      } catch (e) { /* ignore */ }
+
+      try {
+        const r1 = await window.storage.get(STORAGE_KEY_V1);
+        if (r1) {
+          const data = JSON.parse(r1.value);
+          const migrated = (data.transactions || []).map(t => ({
+            id: t.id,
+            date: t.date,
+            shift: t.shift,
+            category: t.category,
+            description: t.description,
+            amount: t.amount,
+            paymentMethod: migratePM(t.paymentMethod),
+            note: t.note || "",
+            createdAt: t.createdAt,
+            cancelled: t.status === "ยกเลิก",
+            cancelledAt: t.status === "ยกเลิก" ? (t.cancelledAt || t.createdAt) : null,
+            attachments: []
+          }));
+          setTransactions(migrated);
+          await window.storage.set(STORAGE_KEY_V3, JSON.stringify({ transactions: migrated }));
+        }
+      } catch (e) { /* ignore */ }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const persist = async (txs) => {
+    try {
+      await window.storage.set(STORAGE_KEY_V3, JSON.stringify({ transactions: txs }));
+    } catch (e) {
+      showToast("บันทึกข้อมูลไม่สำเร็จ — ลองใหม่อีกครั้ง", "error");
+    }
+  };
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 2800);
+  };
+
+  const addTransaction = async (data) => {
+    const tx = {
+      id: generateId(),
+      ...data,
+      createdAt: Date.now(),
+      cancelled: false,
+      cancelledAt: null
+    };
+    const next = [tx, ...transactions];
+    setTransactions(next);
+    await persist(next);
+    showToast("บันทึกรายการเรียบร้อย");
+  };
+
+  const cancelTransaction = async (id) => {
+    const next = transactions.map(t =>
+      t.id === id ? { ...t, cancelled: true, cancelledAt: Date.now() } : t
+    );
+    setTransactions(next);
+    await persist(next);
+    showToast("ยกเลิกรายการแล้ว — ข้อมูลเดิมยังเก็บไว้ตรวจสอบได้");
+  };
+
+  const showImagePreview = (canvas, filename) => {
+    setPreviewCanvas(canvas);
+    setPreviewFilename(filename);
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-50 text-stone-900">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'IBM Plex Sans Thai', system-ui, -apple-system, sans-serif; }
+        input, select, textarea, button { font-family: inherit; }
+      `}</style>
+
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto px-4 py-3.5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-800 text-white grid place-items-center shadow-sm">
+              <Wallet size={20} strokeWidth={2.2} />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold text-stone-900 leading-tight">ระบบเบิกเงินสดย่อย</h1>
+              <p className="text-[11px] text-stone-500">บันทึก · ดูย้อนหลัง · สร้างรูปสรุปส่งพี่ X</p>
+            </div>
+          </div>
+
+          <nav className="flex gap-1 bg-stone-100 p-1 rounded-lg">
+            <TabBtn icon={<PlusCircle size={14} />} label="เพิ่ม" active={tab === "add"} onClick={() => setTab("add")} />
+            <TabBtn icon={<History size={14} />} label="ประวัติ" active={tab === "history"} onClick={() => setTab("history")} />
+            <TabBtn icon={<BarChart3 size={14} />} label="สรุป" active={tab === "summary"} onClick={() => setTab("summary")} />
+            <TabBtn icon={<Send size={14} />} label="ส่งพี่ X" active={tab === "send"} onClick={() => setTab("send")} />
+          </nav>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 py-5 pb-24">
+        {loading ? (
+          <div className="text-center py-20 text-stone-500 text-sm">กำลังโหลดข้อมูล...</div>
+        ) : (
+          <>
+            {tab === "add" && <AddView onAdd={addTransaction} />}
+            {tab === "history" && (
+              <HistoryView
+                transactions={transactions}
+                onCancel={cancelTransaction}
+                onViewAtts={setViewingAtts}
+              />
+            )}
+            {tab === "summary" && <SummaryView transactions={transactions} onShowImage={showImagePreview} />}
+            {tab === "send" && <SendToPartnerView transactions={transactions} onShowImage={showImagePreview} onViewAtts={setViewingAtts} />}
+          </>
+        )}
+      </main>
+
+      {toast && (
+        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium z-50 flex items-center gap-2 ${
+          toast.type === "error" ? "bg-red-600 text-white" : "bg-stone-900 text-white"
+        }`}>
+          {toast.type === "error" ? <AlertCircle size={16} /> : <Check size={16} />}
+          {toast.msg}
+        </div>
+      )}
+
+      {previewCanvas && (
+        <ImagePreviewModal
+          canvas={previewCanvas}
+          filename={previewFilename}
+          onClose={() => setPreviewCanvas(null)}
+        />
+      )}
+
+      {viewingAtts && (
+        <AttachmentViewer attachments={viewingAtts} onClose={() => setViewingAtts(null)} />
+      )}
+    </div>
+  );
+}
+
+function TabBtn({ icon, label, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex items-center justify-center gap-1 py-2 px-1 rounded-md text-[12.5px] font-medium transition ${
+        active ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600 hover:text-stone-900"
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// ─── หน้าเพิ่มรายการ ──────────────────────────────────────────────
+function AddView({ onAdd }) {
+  const [form, setForm] = useState({
+    date: todayStr(),
+    shift: "เช้า",
+    category: CATEGORIES[0],
+    description: "",
+    amount: "",
+    paymentMethod: PAYMENT_METHODS[0],
+    note: "",
+    // ทีมมีเดีย
+    mediaTeam: MEDIA_TEAMS[0],
+    mediaSubType: MEDIA_SUBTYPES[0],
+    mileage: { before: "", after: "", rate: "", tollFee: "" }
+  });
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [errors, setErrors] = useState({});
+  const [filesError, setFilesError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const update = (key, val) => {
+    setForm(f => ({ ...f, [key]: val }));
+    if (errors[key]) setErrors(e => ({ ...e, [key]: null }));
+  };
+
+  // คำนวณค่าน้ำมันอัตโนมัติ
+  const isMedia = form.category === MEDIA_CATEGORY;
+  const isMediaFuel = isMedia && form.mediaSubType === MEDIA_FUEL;
+  const mileage = form.mileage;
+  const distance = useMemo(() => {
+    const b = parseFloat(mileage.before);
+    const a = parseFloat(mileage.after);
+    if (isNaN(b) || isNaN(a)) return null;
+    return Math.max(0, a - b);
+  }, [mileage.before, mileage.after]);
+  const fuelCost = useMemo(() => {
+    const r = parseFloat(mileage.rate);
+    if (distance === null || isNaN(r)) return null;
+    return distance * r;
+  }, [distance, mileage.rate]);
+  const mileageTotal = useMemo(() => {
+    const f = fuelCost ?? 0;
+    const t = parseFloat(mileage.tollFee) || 0;
+    if (fuelCost === null) return null;
+    return f + t;
+  }, [fuelCost, mileage.tollFee]);
+
+  // Auto-fill amount จากตัวคำนวณ
+  useEffect(() => {
+    if (isMediaFuel && mileageTotal !== null) {
+      setForm(f => ({ ...f, amount: mileageTotal.toFixed(2) }));
+    }
+  }, [isMediaFuel, mileageTotal]);
+
+  const updateMileage = (key, val) => {
+    setForm(f => ({ ...f, mileage: { ...f.mileage, [key]: val } }));
+  };
+
+  const handleFilePick = (e) => {
+    const picked = Array.from(e.target.files || []);
+    const accepted = [];
+    const rejected = [];
+    picked.forEach(f => {
+      if (ALLOWED_TYPES.includes(f.type) || (f.type === '' && /\.(jpe?g|png|pdf)$/i.test(f.name))) {
+        accepted.push(f);
+      } else {
+        rejected.push(f.name);
+      }
+    });
+    if (rejected.length > 0) {
+      setFilesError(`ไฟล์ที่ไม่รองรับ: ${rejected.join(", ")}`);
+    } else {
+      setFilesError(null);
+    }
+    setPendingFiles(prev => [...prev, ...accepted]);
+    e.target.value = '';
+  };
+
+  const removePendingFile = (idx) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const submit = async () => {
+    const errs = {};
+    if (!form.description.trim()) errs.description = "กรุณาใส่ชื่อรายการ";
+    if (!form.amount || parseFloat(form.amount) <= 0) errs.amount = "กรุณาใส่จำนวนเงิน";
+    if (!form.date) errs.date = "กรุณาเลือกวันที่";
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      return;
+    }
+
+    setSubmitting(true);
+    setFilesError(null);
+
+    // ประมวลผลและบันทึกไฟล์แนบก่อน
+    const attachments = [];
+    for (const file of pendingFiles) {
+      try {
+        const meta = await saveAttachment(file);
+        attachments.push(meta);
+      } catch (err) {
+        setFilesError(`"${file.name}": ${err.message || "บันทึกไฟล์ไม่สำเร็จ"}`);
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    await onAdd({
+      date: form.date,
+      shift: form.shift,
+      category: form.category,
+      description: form.description.trim(),
+      amount: parseFloat(form.amount),
+      paymentMethod: form.paymentMethod,
+      note: form.note.trim(),
+      attachments,
+      // ทีมมีเดีย — เก็บเฉพาะถ้าหมวดเป็นทีมมีเดีย
+      ...(isMedia ? {
+        mediaTeam: form.mediaTeam,
+        mediaSubType: form.mediaSubType,
+        ...(isMediaFuel && distance !== null ? {
+          mileage: {
+            before: parseFloat(form.mileage.before),
+            after: parseFloat(form.mileage.after),
+            distance,
+            rate: parseFloat(form.mileage.rate) || 0,
+            fuelCost: fuelCost || 0,
+            tollFee: parseFloat(form.mileage.tollFee) || 0,
+            total: mileageTotal || 0
+          }
+        } : {})
+      } : {})
+    });
+
+    setForm({
+      date: todayStr(),
+      shift: form.shift,
+      category: CATEGORIES[0],
+      description: "",
+      amount: "",
+      paymentMethod: PAYMENT_METHODS[0],
+      note: "",
+      mediaTeam: MEDIA_TEAMS[0],
+      mediaSubType: MEDIA_SUBTYPES[0],
+      mileage: { before: "", after: "", rate: "", tollFee: "" }
+    });
+    setPendingFiles([]);
+    setSubmitting(false);
+  };
+
+  const isXPayment = form.paymentMethod === X_PAYMENT;
+
+  return (
+    <div className="bg-white rounded-2xl border border-stone-200 p-5 max-w-2xl mx-auto shadow-sm">
+      <div className="flex items-start gap-3 mb-5">
+        <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 grid place-items-center flex-shrink-0">
+          <PlusCircle size={18} />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-stone-900">เพิ่มรายการเบิก</h2>
+          <p className="text-[12px] text-stone-500 mt-0.5 flex items-center gap-1">
+            <Lock size={11} />
+            เมื่อบันทึกแล้วล็อกข้อมูล — ถ้าผิดให้ยกเลิกแล้วบันทึกใหม่
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="วันที่" error={errors.date}>
+            <input
+              type="date"
+              value={form.date}
+              onChange={e => update("date", e.target.value)}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </Field>
+          <Field label="รอบเบิก">
+            <div className="grid grid-cols-2 gap-1 bg-stone-100 p-1 rounded-lg">
+              {SHIFTS.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => update("shift", s)}
+                  className={`py-1.5 rounded-md text-sm font-medium flex items-center justify-center gap-1 transition ${
+                    form.shift === s
+                      ? s === "เช้า" ? "bg-amber-100 text-amber-800 shadow-sm" : "bg-indigo-100 text-indigo-800 shadow-sm"
+                      : "text-stone-600"
+                  }`}
+                >
+                  {s === "เช้า" ? <Sun size={13} /> : <Moon size={13} />}
+                  {s}
+                </button>
+              ))}
+            </div>
+          </Field>
+        </div>
+
+        <Field label="หมวดค่าใช้จ่าย">
+          <select
+            value={form.category}
+            onChange={e => update("category", e.target.value)}
+            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </Field>
+
+        {/* ─── ฟิลด์เพิ่มเติมสำหรับทีมมีเดีย ─── */}
+        {isMedia && (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 space-y-3">
+            <p className="text-[12px] font-semibold text-purple-900 flex items-center gap-1">
+              🎥 รายละเอียดทีมมีเดีย
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="ผู้ไปงาน">
+                <select
+                  value={form.mediaTeam}
+                  onChange={e => update("mediaTeam", e.target.value)}
+                  className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {MEDIA_TEAMS.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </Field>
+              <Field label="ประเภทค่าใช้จ่าย">
+                <select
+                  value={form.mediaSubType}
+                  onChange={e => update("mediaSubType", e.target.value)}
+                  className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {MEDIA_SUBTYPES.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </Field>
+            </div>
+
+            {isMediaFuel && (
+              <div className="bg-white rounded-lg p-3 border border-purple-200">
+                <p className="text-[11.5px] font-semibold text-stone-700 mb-2">⛽ คำนวณค่าน้ำมัน</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="เลขไมล์ก่อนออก">
+                    <input
+                      type="number"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={form.mileage.before}
+                      onChange={e => updateMileage("before", e.target.value)}
+                      placeholder="0"
+                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                    />
+                  </Field>
+                  <Field label="เลขไมล์หลังกลับ">
+                    <input
+                      type="number"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={form.mileage.after}
+                      onChange={e => updateMileage("after", e.target.value)}
+                      placeholder="0"
+                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                    />
+                  </Field>
+                </div>
+                <div className="bg-stone-50 px-2.5 py-1.5 rounded-lg my-2 flex items-center justify-between text-[12px]">
+                  <span className="text-stone-600">ระยะทางรวม</span>
+                  <span className="font-bold text-stone-900 font-mono">
+                    {distance !== null ? `${distance.toFixed(1)} กม.` : "—"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="เรทค่าน้ำมัน (บาท/กม.)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={form.mileage.rate}
+                      onChange={e => updateMileage("rate", e.target.value)}
+                      placeholder="เช่น 5"
+                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                    />
+                  </Field>
+                  <Field label="ค่าทางด่วน (บาท)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={form.mileage.tollFee}
+                      onChange={e => updateMileage("tollFee", e.target.value)}
+                      placeholder="0"
+                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                    />
+                  </Field>
+                </div>
+                <div className="bg-stone-50 px-2.5 py-1.5 rounded-lg mt-2 flex items-center justify-between text-[12px]">
+                  <span className="text-stone-600">ค่าน้ำมัน</span>
+                  <span className="font-mono text-stone-700">
+                    {fuelCost !== null ? `฿${fmt(fuelCost)}` : "—"}
+                  </span>
+                </div>
+                <div className="bg-purple-100 px-2.5 py-2 rounded-lg mt-2 flex items-center justify-between">
+                  <span className="text-[12px] font-semibold text-purple-900">ยอดรวมรายการ</span>
+                  <span className="text-[15px] font-bold text-purple-900 font-mono">
+                    {mileageTotal !== null ? `฿${fmt(mileageTotal)}` : "—"}
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-stone-500 mt-2">
+                  * ยอดรวมจะเติมในช่อง "จำนวนเงิน" ให้อัตโนมัติ
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <Field label="ชื่อรายการ" error={errors.description}>
+          <input
+            value={form.description}
+            onChange={e => update("description", e.target.value)}
+            placeholder={isMedia ? "เช่น ถ่ายงานลูกค้า A, ไปจังหวัดนนทบุรี" : "เช่น ซื้อนอต, จ้างรถส่งของ"}
+            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="จำนวนเงิน (บาท)" error={errors.amount}>
+            <input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              value={form.amount}
+              onChange={e => update("amount", e.target.value)}
+              placeholder="0.00"
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </Field>
+          <Field label="วิธีจ่ายเงิน">
+            <select
+              value={form.paymentMethod}
+              onChange={e => update("paymentMethod", e.target.value)}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        {isXPayment && (
+          <div className="bg-stone-100 border border-stone-200 rounded-lg px-3 py-2.5 text-[12px] text-stone-700 flex items-start gap-2">
+            <AlertCircle size={14} className="flex-shrink-0 mt-0.5 text-stone-500" />
+            <span>รายการนี้พี่ X จ่ายเอง <b>ไม่นับรวมในยอดเบิก</b> — จะแสดงแยกในสรุป</span>
+          </div>
+        )}
+
+        <Field label="หมายเหตุ (ไม่บังคับ)">
+          <textarea
+            value={form.note}
+            onChange={e => update("note", e.target.value)}
+            rows={2}
+            placeholder="รายละเอียดเพิ่มเติม"
+            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </Field>
+
+        {/* ─── แนบรูปหลักฐาน ─── */}
+        <div>
+          <label className="block text-[12px] font-medium text-stone-700 mb-1">แนบรูปหลักฐาน (ถ้ามี)</label>
+          <p className="text-[11px] text-stone-500 mb-2">
+            เช่น สลิปโอน ใบเสร็จ ค่าทางด่วน รูปของที่ซื้อ — รองรับ JPG / PNG / PDF
+          </p>
+          <label className="flex items-center justify-center gap-2 px-3 py-2.5 border-2 border-dashed border-stone-300 rounded-lg text-sm text-stone-600 hover:border-emerald-500 hover:bg-emerald-50/30 cursor-pointer transition">
+            <Paperclip size={15} />
+            เลือกไฟล์...
+            <input
+              type="file"
+              accept="image/jpeg,image/png,application/pdf"
+              multiple
+              onChange={handleFilePick}
+              className="sr-only"
+            />
+          </label>
+
+          {pendingFiles.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              {pendingFiles.map((file, i) => (
+                <div key={i} className="flex items-center gap-2 bg-stone-50 border border-stone-200 px-2.5 py-1.5 rounded-lg">
+                  {file.type === 'application/pdf'
+                    ? <FileText size={14} className="text-red-600 flex-shrink-0" />
+                    : <ImageIcon size={14} className="text-emerald-600 flex-shrink-0" />}
+                  <span className="text-[12px] text-stone-700 flex-1 truncate">{file.name}</span>
+                  <span className="text-[10.5px] text-stone-400 flex-shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+                  <button type="button" onClick={() => removePendingFile(i)} className="text-stone-400 hover:text-red-600 flex-shrink-0">
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {filesError && (
+            <p className="mt-2 text-[11px] text-red-600 flex items-start gap-1">
+              <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
+              <span>{filesError}</span>
+            </p>
+          )}
+        </div>
+
+        <button
+          onClick={submit}
+          disabled={submitting}
+          className="w-full bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white py-3 rounded-lg font-semibold text-sm disabled:opacity-60 transition flex items-center justify-center gap-2"
+        >
+          <Check size={16} />
+          {submitting ? "กำลังบันทึก..." : "บันทึกรายการ"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, error, children }) {
+  return (
+    <div>
+      <label className="block text-[12px] font-medium text-stone-700 mb-1.5">{label}</label>
+      {children}
+      {error && <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertCircle size={11} />{error}</p>}
+    </div>
+  );
+}
+
+// ─── หน้าประวัติ ─────────────────────────────────────────────────
+function HistoryView({ transactions, onCancel, onViewAtts }) {
+  const [filters, setFilters] = useState({
+    dateFrom: "", dateTo: "", shift: "ทั้งหมด", category: "ทั้งหมด",
+    paymentMethod: "ทั้งหมด", showCancelled: "ทั้งหมด", search: ""
+  });
+  const [showFilters, setShowFilters] = useState(false);
+
+  const filtered = useMemo(() => {
+    return transactions
+      .filter(t => {
+        if (filters.dateFrom && t.date < filters.dateFrom) return false;
+        if (filters.dateTo && t.date > filters.dateTo) return false;
+        if (filters.shift !== "ทั้งหมด" && t.shift !== filters.shift) return false;
+        if (filters.category !== "ทั้งหมด" && t.category !== filters.category) return false;
+        if (filters.paymentMethod !== "ทั้งหมด" && t.paymentMethod !== filters.paymentMethod) return false;
+        if (filters.showCancelled === "เฉพาะที่ใช้งาน" && t.cancelled) return false;
+        if (filters.showCancelled === "เฉพาะที่ยกเลิก" && !t.cancelled) return false;
+        if (filters.search) {
+          const s = filters.search.toLowerCase();
+          if (!(t.description || "").toLowerCase().includes(s) && !(t.note || "").toLowerCase().includes(s)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [transactions, filters]);
+
+  const activeTotal = filtered.filter(t => !t.cancelled && t.paymentMethod !== X_PAYMENT).reduce((s, t) => s + t.amount, 0);
+  const update = (k, v) => setFilters(f => ({ ...f, [k]: v }));
+  const reset = () => setFilters({
+    dateFrom: "", dateTo: "", shift: "ทั้งหมด", category: "ทั้งหมด",
+    paymentMethod: "ทั้งหมด", showCancelled: "ทั้งหมด", search: ""
+  });
+
+  const activeFilterCount = [
+    filters.dateFrom, filters.dateTo,
+    filters.shift !== "ทั้งหมด" ? filters.shift : "",
+    filters.category !== "ทั้งหมด" ? filters.category : "",
+    filters.paymentMethod !== "ทั้งหมด" ? filters.paymentMethod : "",
+    filters.showCancelled !== "ทั้งหมด" ? filters.showCancelled : ""
+  ].filter(Boolean).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white rounded-2xl border border-stone-200 p-3.5 shadow-sm">
+        <div className="relative mb-2">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input
+            value={filters.search}
+            onChange={e => update("search", e.target.value)}
+            placeholder="ค้นหาจากชื่อรายการ..."
+            className="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          />
+        </div>
+
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="w-full flex items-center justify-between text-sm text-stone-700 hover:text-stone-900 py-1.5 px-1"
+        >
+          <span className="flex items-center gap-1.5">
+            <Filter size={14} />
+            ตัวกรอง
+            {activeFilterCount > 0 && (
+              <span className="bg-emerald-700 text-white text-[10px] px-1.5 py-0.5 rounded-full font-semibold">{activeFilterCount}</span>
+            )}
+          </span>
+          <ChevronDown size={16} className={`transition ${showFilters ? "rotate-180" : ""}`} />
+        </button>
+
+        {showFilters && (
+          <div className="mt-2 pt-3 border-t border-stone-200 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              <FilterField label="ตั้งแต่วันที่">
+                <input type="date" value={filters.dateFrom} onChange={e => update("dateFrom", e.target.value)}
+                  className="w-full px-2 py-1.5 border border-stone-300 rounded text-[13px]" />
+              </FilterField>
+              <FilterField label="ถึงวันที่">
+                <input type="date" value={filters.dateTo} onChange={e => update("dateTo", e.target.value)}
+                  className="w-full px-2 py-1.5 border border-stone-300 rounded text-[13px]" />
+              </FilterField>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <FilterField label="รอบเบิก">
+                <select value={filters.shift} onChange={e => update("shift", e.target.value)}
+                  className="w-full px-2 py-1.5 border border-stone-300 rounded text-[13px] bg-white">
+                  <option>ทั้งหมด</option>
+                  {SHIFTS.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </FilterField>
+              <FilterField label="แสดง">
+                <select value={filters.showCancelled} onChange={e => update("showCancelled", e.target.value)}
+                  className="w-full px-2 py-1.5 border border-stone-300 rounded text-[13px] bg-white">
+                  <option>ทั้งหมด</option>
+                  <option>เฉพาะที่ใช้งาน</option>
+                  <option>เฉพาะที่ยกเลิก</option>
+                </select>
+              </FilterField>
+            </div>
+            <FilterField label="หมวดค่าใช้จ่าย">
+              <select value={filters.category} onChange={e => update("category", e.target.value)}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded text-[13px] bg-white">
+                <option>ทั้งหมด</option>
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </FilterField>
+            <FilterField label="วิธีจ่ายเงิน">
+              <select value={filters.paymentMethod} onChange={e => update("paymentMethod", e.target.value)}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded text-[13px] bg-white">
+                <option>ทั้งหมด</option>
+                {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
+              </select>
+            </FilterField>
+            <button onClick={reset}
+              className="text-[12px] text-stone-500 hover:text-stone-900 flex items-center gap-1 pt-1">
+              <RefreshCw size={11} />ล้างตัวกรองทั้งหมด
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-gradient-to-r from-emerald-700 to-emerald-800 rounded-2xl p-4 flex items-center justify-between text-white shadow-sm">
+        <div>
+          <p className="text-[11px] opacity-90 font-medium">พบรายการ</p>
+          <p className="text-base font-semibold">{fmtInt(filtered.length)} รายการ</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] opacity-90 font-medium">ยอดเบิก (ไม่รวมพี่ X / ยกเลิก)</p>
+          <p className="text-lg font-bold">฿{fmt(activeTotal)}</p>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center">
+          <Receipt size={36} className="mx-auto text-stone-300 mb-2" />
+          <p className="text-sm text-stone-500">ไม่พบรายการ</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(t => (
+            <TransactionCard key={t.id} tx={t} onCancel={onCancel} onViewAtts={onViewAtts} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterField({ label, children }) {
+  return (
+    <div>
+      <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
+  const [confirming, setConfirming] = useState(false);
+  const isX = tx.paymentMethod === X_PAYMENT;
+  const isCancelled = tx.cancelled;
+  const hasAtts = tx.attachments && tx.attachments.length > 0;
+  const isMedia = tx.category === MEDIA_CATEGORY;
+
+  return (
+    <div className={`bg-white rounded-2xl border p-3.5 shadow-sm ${isCancelled ? "border-stone-200 opacity-60" : isMedia ? "border-purple-200 border-l-4" : "border-stone-200"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${
+              tx.shift === "เช้า" ? "bg-amber-100 text-amber-800" : "bg-indigo-100 text-indigo-800"
+            }`}>
+              {tx.shift === "เช้า" ? <Sun size={10} /> : <Moon size={10} />}
+              {tx.shift}
+            </span>
+            <span className="text-[11px] text-stone-500">{tx.date}</span>
+            {isMedia && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold">
+                🎥 ทีมมีเดีย{tx.mediaTeam ? ` · ${tx.mediaTeam}` : ""}
+              </span>
+            )}
+            {isX && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-700 font-medium">พี่ X จ่ายเอง</span>
+            )}
+            {isCancelled && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium flex items-center gap-0.5">
+                <Ban size={10} />ยกเลิก
+              </span>
+            )}
+            {hasAtts && (
+              <button
+                onClick={() => onViewAtts && onViewAtts(tx.attachments)}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium flex items-center gap-0.5 hover:bg-emerald-100 transition"
+              >
+                <Paperclip size={10} />
+                หลักฐาน {tx.attachments.length}
+              </button>
+            )}
+          </div>
+          <p className={`text-[14px] font-medium text-stone-900 ${isCancelled ? "line-through" : ""}`}>
+            {tx.description}
+          </p>
+          {tx.note && <p className="text-[11.5px] text-stone-500 mt-0.5">{tx.note}</p>}
+
+          {/* รายละเอียดทีมมีเดีย */}
+          {isMedia && tx.mediaSubType && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] flex-wrap">
+              <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                {tx.mediaSubType}
+              </span>
+              {tx.mileage && (
+                <span className="text-stone-500 font-mono">
+                  {tx.mileage.distance.toFixed(1)} กม. × ฿{tx.mileage.rate}
+                  {tx.mileage.tollFee > 0 && ` + ค่าด่วน ฿${fmt(tx.mileage.tollFee)}`}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-stone-500 flex-wrap">
+            <span className="bg-stone-100 px-1.5 py-0.5 rounded">{tx.category}</span>
+            <span className="bg-stone-100 px-1.5 py-0.5 rounded">{tx.paymentMethod}</span>
+          </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className={`text-base font-bold ${isX ? "text-stone-500" : "text-stone-900"} ${isCancelled ? "line-through" : ""}`}>
+            ฿{fmt(tx.amount)}
+          </p>
+        </div>
+      </div>
+
+      {!readOnly && !isCancelled && (
+        <div className="mt-3 pt-2.5 border-t border-stone-100 flex flex-wrap gap-1.5">
+          {confirming ? (
+            <>
+              <span className="text-[11.5px] text-red-700 font-medium px-1 py-1 flex items-center gap-1">
+                <AlertCircle size={12} />ยืนยันยกเลิก?
+              </span>
+              <button onClick={() => { onCancel(tx.id); setConfirming(false); }}
+                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[11.5px] font-medium">
+                ใช่ ยกเลิก
+              </button>
+              <button onClick={() => setConfirming(false)}
+                className="px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-[11.5px] font-medium">
+                ไม่
+              </button>
+            </>
+          ) : (
+            <button onClick={() => setConfirming(true)}
+              className="px-2.5 py-1 bg-stone-100 hover:bg-red-100 hover:text-red-700 text-stone-600 rounded text-[11.5px] font-medium flex items-center gap-1">
+              <Ban size={11} />ยกเลิกรายการ
+            </button>
+          )}
+        </div>
+      )}
+
+      {isCancelled && tx.cancelledAt && (
+        <p className="mt-2 text-[10.5px] text-stone-400">
+          ยกเลิกเมื่อ {new Date(tx.cancelledAt).toLocaleString("th-TH")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── หน้าสรุปยอด (สำหรับพี่ญ) ────────────────────────────────────
+function SummaryView({ transactions, onShowImage }) {
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [to, setTo] = useState(todayStr());
+
+  const today = todayStr();
+  const todaySummary = useMemo(() => computeSummary(transactions, t => t.date === today), [transactions, today]);
+  const rangeSummary = useMemo(() => computeSummary(transactions, t => t.date >= from && t.date <= to), [transactions, from, to]);
+  const todayMedia = useMemo(() => computeMediaSummary(todaySummary.yItems), [todaySummary]);
+  const rangeMedia = useMemo(() => computeMediaSummary(rangeSummary.yItems), [rangeSummary]);
+
+  const byCategory = useMemo(() => {
+    const map = {};
+    rangeSummary.yItems.forEach(t => { map[t.category] = (map[t.category] || 0) + t.amount; });
+    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  }, [rangeSummary]);
+
+  // breakdown 2 ตัวเลือก: จ่ายเงินสด + โอน/สแกน
+  const todayBreakdown = useMemo(() => {
+    let cash = 0, transfer = 0;
+    todaySummary.yItems.forEach(t => {
+      if (t.paymentMethod === "จ่ายเงินสด") cash += t.amount;
+      else if (t.paymentMethod === "โอน/สแกน") transfer += t.amount;
+    });
+    return { cash, transfer };
+  }, [todaySummary]);
+
+  const COLORS = ["#047857", "#0d9488", "#d97706", "#b45309", "#7c2d12", "#831843", "#3730a3", "#475569"];
+
+  const handleGenerateImage = async () => {
+    const canvas = await renderSummaryImage(todaySummary, formatThaiDate(today), "สรุปรายวัน");
+    onShowImage(canvas, `สรุปยอด_${today}.png`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[13px] font-semibold text-stone-700 flex items-center gap-1.5">
+            <Calendar size={13} />
+            วันนี้ <span className="text-stone-400 font-normal">({today})</span>
+          </h2>
+          <button
+            onClick={handleGenerateImage}
+            disabled={todaySummary.count === 0}
+            className="flex items-center gap-1 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg text-[12px] font-medium"
+          >
+            <ImageIcon size={13} /> สร้างรูปสรุปส่งพี่ X
+          </button>
+        </div>
+
+        <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-xl p-4 mb-3">
+          <p className="text-[12px] opacity-90">ยอดเบิกรวมวันนี้ <span className="opacity-70">(ไม่รวมพี่ X)</span></p>
+          <p className="text-3xl font-bold mt-1">฿{fmt(todaySummary.total)}</p>
+          <p className="text-[11px] opacity-80 mt-1">{fmtInt(todaySummary.yCount)} รายการ</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <StatCard label="เบิกเช้า" value={fmt(todaySummary.morning)} icon={<Sun size={14} />} color="amber" />
+          <StatCard label="เบิกเย็น" value={fmt(todaySummary.evening)} icon={<Moon size={14} />} color="indigo" />
+        </div>
+
+        {(todayBreakdown.cash > 0 || todayBreakdown.transfer > 0) && (
+          <div className="mt-3 pt-3 border-t border-stone-100">
+            <p className="text-[11px] text-stone-500 font-medium mb-2 uppercase tracking-wide">รายละเอียดการจ่าย</p>
+            <div className="grid grid-cols-2 gap-2 text-[12px]">
+              {todayBreakdown.cash > 0 && (
+                <div className="flex justify-between bg-stone-50 px-2.5 py-1.5 rounded">
+                  <span className="text-stone-600">จ่ายเงินสด</span>
+                  <span className="font-semibold text-stone-900">฿{fmt(todayBreakdown.cash)}</span>
+                </div>
+              )}
+              {todayBreakdown.transfer > 0 && (
+                <div className="flex justify-between bg-stone-50 px-2.5 py-1.5 rounded">
+                  <span className="text-stone-600">โอน/สแกน</span>
+                  <span className="font-semibold text-stone-900">฿{fmt(todayBreakdown.transfer)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {todayMedia.mediaCount > 0 && (
+          <div className="mt-3">
+            <MediaSummaryCard ms={todayMedia} />
+          </div>
+        )}
+
+        {todaySummary.xTotal > 0 && (
+          <div className="mt-2 bg-stone-100 border border-stone-200 rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] text-stone-700 font-medium flex items-center gap-1">
+                <User size={12} />พี่ X โอนเอง <span className="text-stone-400">(ไม่รวมในยอดเบิก)</span>
+              </p>
+              <p className="text-base font-bold text-stone-900">฿{fmt(todaySummary.xTotal)}</p>
+            </div>
+            <p className="text-[10.5px] text-stone-500 mt-0.5">{fmtInt(todaySummary.xCount)} รายการ</p>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-sm">
+        <h2 className="text-[13px] font-semibold text-stone-700 mb-3 flex items-center gap-1.5">
+          <BarChart3 size={13} />สรุปตามช่วงวันที่
+        </h2>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div>
+            <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ตั้งแต่</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+              className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
+          </div>
+          <div>
+            <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ถึง</label>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)}
+              className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
+          </div>
+        </div>
+
+        <div className="bg-stone-900 text-white rounded-xl p-4 mb-4">
+          <p className="text-[11px] opacity-80">ยอดเบิกรวมตามช่วง</p>
+          <p className="text-2xl font-bold mt-1">฿{fmt(rangeSummary.total)}</p>
+          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-white/20">
+            <div>
+              <p className="text-[10px] opacity-70">เช้า</p>
+              <p className="text-[13px] font-semibold">฿{fmt(rangeSummary.morning)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] opacity-70">เย็น</p>
+              <p className="text-[13px] font-semibold">฿{fmt(rangeSummary.evening)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] opacity-70">พี่ X</p>
+              <p className="text-[13px] font-semibold">฿{fmt(rangeSummary.xTotal)}</p>
+            </div>
+          </div>
+        </div>
+
+        {(rangeMedia.mediaCount > 0 || rangeMedia.installerCount > 0) && (
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+              <p className="text-[11px] text-purple-700 font-medium">🎥 ทีมมีเดีย</p>
+              <p className="text-base font-bold text-purple-900 mt-0.5">฿{fmt(rangeMedia.mediaTotal)}</p>
+              <p className="text-[10px] text-purple-600 mt-0.5">{fmtInt(rangeMedia.mediaCount)} รายการ</p>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+              <p className="text-[11px] text-orange-700 font-medium">🔧 ช่างติดตั้ง</p>
+              <p className="text-base font-bold text-orange-900 mt-0.5">฿{fmt(rangeMedia.installerTotal)}</p>
+              <p className="text-[10px] text-orange-600 mt-0.5">{fmtInt(rangeMedia.installerCount)} รายการ</p>
+            </div>
+          </div>
+        )}
+
+        {rangeMedia.mediaCount > 0 && (
+          <div className="mb-4">
+            <MediaSummaryCard ms={rangeMedia} />
+          </div>
+        )}
+
+        {byCategory.length > 0 ? (
+          <div>
+            <p className="text-[11.5px] font-medium text-stone-600 mb-2">แยกตามหมวด</p>
+            <div className="space-y-2">
+              {byCategory.map((c, i) => {
+                const pct = rangeSummary.total > 0 ? (c.value / rangeSummary.total) * 100 : 0;
+                return (
+                  <div key={c.name}>
+                    <div className="flex justify-between text-[12px] mb-1">
+                      <span className="text-stone-700">{c.name}</span>
+                      <span className="font-medium text-stone-900">฿{fmt(c.value)} <span className="text-stone-400">({pct.toFixed(1)}%)</span></span>
+                    </div>
+                    <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-6 text-stone-400 text-sm">
+            ยังไม่มีรายการในช่วงเวลาที่เลือก
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon, color }) {
+  const colors = {
+    amber: "bg-amber-50 border-amber-200 text-amber-800",
+    indigo: "bg-indigo-50 border-indigo-200 text-indigo-800",
+    stone: "bg-stone-100 border-stone-200 text-stone-700"
+  };
+  return (
+    <div className={`${colors[color]} border rounded-xl p-3`}>
+      <div className="flex items-center gap-1.5 mb-1 opacity-80">
+        {icon}
+        <p className="text-[11.5px] font-medium">{label}</p>
+      </div>
+      <p className="font-bold text-lg">฿{value}</p>
+    </div>
+  );
+}
+
+function MediaSummaryCard({ ms }) {
+  if (ms.mediaCount === 0) return null;
+  return (
+    <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[12px] font-semibold text-purple-900 flex items-center gap-1">
+          🎥 ทีมมีเดีย
+        </p>
+        <p className="text-[10.5px] text-purple-700">{fmtInt(ms.mediaCount)} รายการ</p>
+      </div>
+      <p className="text-2xl font-bold text-purple-900">฿{fmt(ms.mediaTotal)}</p>
+      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-purple-200 text-[11.5px]">
+        <div>
+          <p className="text-purple-700">ค่าน้ำมัน</p>
+          <p className="font-semibold text-purple-900">฿{fmt(ms.sub.fuel)}</p>
+        </div>
+        <div>
+          <p className="text-purple-700">ค่าทางด่วน</p>
+          <p className="font-semibold text-purple-900">฿{fmt(ms.sub.toll)}</p>
+        </div>
+        <div>
+          <p className="text-purple-700">ค่าอื่น ๆ</p>
+          <p className="font-semibold text-purple-900">฿{fmt(ms.sub.other)}</p>
+        </div>
+      </div>
+      {ms.totalDistance > 0 && (
+        <p className="text-[11px] text-purple-700 mt-2 font-medium">
+          ระยะทางรวม {ms.totalDistance.toFixed(1)} กม.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── หน้า "สรุปส่งพี่ X" — สำหรับพี่ญสร้างรูปส่ง ───────────────────
+function SendToPartnerView({ transactions, onShowImage, onViewAtts }) {
+  const [mode, setMode] = useState("day");
+  const [date, setDate] = useState(todayStr());
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [to, setTo] = useState(todayStr());
+
+  const summary = useMemo(() => {
+    if (mode === "day") return computeSummary(transactions, t => t.date === date);
+    return computeSummary(transactions, t => t.date >= from && t.date <= to);
+  }, [transactions, mode, date, from, to]);
+
+  const items = useMemo(() => {
+    return [...summary.items].sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      if (a.shift !== b.shift) return a.shift === "เช้า" ? -1 : 1;
+      return a.createdAt - b.createdAt;
+    });
+  }, [summary.items]);
+
+  const breakdown = useMemo(() => {
+    let cash = 0, transfer = 0;
+    summary.yItems.forEach(t => {
+      if (t.paymentMethod === "จ่ายเงินสด") cash += t.amount;
+      else if (t.paymentMethod === "โอน/สแกน") transfer += t.amount;
+    });
+    return { cash, transfer };
+  }, [summary]);
+
+  const mediaSummary = useMemo(() => computeMediaSummary(summary.yItems), [summary]);
+
+  const dateLabel = mode === "day"
+    ? formatThaiDate(date)
+    : `${formatThaiDate(from)} – ${formatThaiDate(to)}`;
+  const fileLabel = mode === "day" ? date : `${from}_ถึง_${to}`;
+
+  const handleGenerateImage = async () => {
+    const canvas = await renderSummaryImage(summary, dateLabel, mode === "day" ? "สรุปรายวัน" : "สรุปช่วงวันที่");
+    onShowImage(canvas, `สรุปยอด_${fileLabel}.png`);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 text-[12px] text-emerald-900 flex items-start gap-2">
+        <Send size={14} className="mt-0.5 flex-shrink-0" />
+        <span>เลือกวันที่หรือช่วงเวลา ตรวจตัวเลข แล้วกดสร้างรูปเพื่อส่งให้พี่ X ทาง LINE</span>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-stone-200 p-3.5 shadow-sm">
+        <div className="grid grid-cols-2 gap-1 bg-stone-100 p-1 rounded-lg mb-3">
+          <button onClick={() => setMode("day")}
+            className={`py-1.5 rounded-md text-[13px] font-medium transition ${
+              mode === "day" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
+            }`}>
+            รายวัน
+          </button>
+          <button onClick={() => setMode("range")}
+            className={`py-1.5 rounded-md text-[13px] font-medium transition ${
+              mode === "range" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
+            }`}>
+            ช่วงวันที่
+          </button>
+        </div>
+
+        {mode === "day" ? (
+          <div>
+            <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">วันที่</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ตั้งแต่</label>
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-medium text-stone-600 mb-1 uppercase tracking-wide">ถึง</label>
+              <input type="date" value={to} onChange={e => setTo(e.target.value)}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px]" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+        <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white p-5">
+          <p className="text-[11px] opacity-80 font-medium uppercase tracking-wide">{dateLabel}</p>
+          <p className="text-[12px] opacity-90 mt-2">ยอดเบิกรวมสุทธิ</p>
+          <p className="text-4xl font-bold mt-1">฿{fmt(summary.total)}</p>
+          <p className="text-[11px] opacity-80 mt-1">{fmtInt(summary.yCount)} รายการ</p>
+        </div>
+
+        <div className="grid grid-cols-2 divide-x divide-stone-200 border-b border-stone-200">
+          <div className="p-3.5">
+            <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1"><Sun size={11} />รวมรอบเช้า</p>
+            <p className="text-lg font-bold text-stone-900 mt-0.5">฿{fmt(summary.morning)}</p>
+          </div>
+          <div className="p-3.5">
+            <p className="text-[11px] text-indigo-700 font-medium flex items-center gap-1"><Moon size={11} />รวมรอบเย็น</p>
+            <p className="text-lg font-bold text-stone-900 mt-0.5">฿{fmt(summary.evening)}</p>
+          </div>
+        </div>
+
+        {(breakdown.cash > 0 || breakdown.transfer > 0) && (
+          <div className="px-3.5 py-3 border-b border-stone-200">
+            <p className="text-[10.5px] text-stone-500 font-medium uppercase tracking-wide mb-1.5">รายละเอียดการจ่าย</p>
+            <div className="space-y-1 text-[12.5px]">
+              {breakdown.cash > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">จ่ายเงินสด</span>
+                  <span className="font-semibold text-stone-900">฿{fmt(breakdown.cash)}</span>
+                </div>
+              )}
+              {breakdown.transfer > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-600">โอน/สแกน</span>
+                  <span className="font-semibold text-stone-900">฿{fmt(breakdown.transfer)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {summary.xTotal > 0 && (
+          <div className="bg-stone-50 p-3.5 border-b border-stone-200 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] text-stone-600 font-medium flex items-center gap-1"><User size={11} />พี่ X โอนเอง</p>
+              <p className="text-[10px] text-stone-400 mt-0.5">{fmtInt(summary.xCount)} รายการ · ไม่รวมในยอดเบิก</p>
+            </div>
+            <p className="text-base font-semibold text-stone-700">฿{fmt(summary.xTotal)}</p>
+          </div>
+        )}
+
+        <div className="p-3.5 flex items-center justify-between">
+          <p className="text-[11px] text-stone-500">รวมรายการทั้งหมด</p>
+          <p className="text-[13px] font-semibold text-stone-900">{fmtInt(summary.count)} รายการ</p>
+        </div>
+      </div>
+
+      {(mediaSummary.mediaCount > 0 || mediaSummary.installerCount > 0) && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+            <p className="text-[11px] text-purple-700 font-medium">🎥 ทีมมีเดีย</p>
+            <p className="text-base font-bold text-purple-900 mt-0.5">฿{fmt(mediaSummary.mediaTotal)}</p>
+            <p className="text-[10px] text-purple-600 mt-0.5">{fmtInt(mediaSummary.mediaCount)} รายการ</p>
+          </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+            <p className="text-[11px] text-orange-700 font-medium">🔧 ช่างติดตั้ง</p>
+            <p className="text-base font-bold text-orange-900 mt-0.5">฿{fmt(mediaSummary.installerTotal)}</p>
+            <p className="text-[10px] text-orange-600 mt-0.5">{fmtInt(mediaSummary.installerCount)} รายการ</p>
+          </div>
+        </div>
+      )}
+
+      {mediaSummary.mediaCount > 0 && <MediaSummaryCard ms={mediaSummary} />}
+
+      <button
+        onClick={handleGenerateImage}
+        disabled={summary.count === 0}
+        className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 shadow-sm"
+      >
+        <ImageIcon size={16} />สร้างรูปสรุปส่งพี่ X
+      </button>
+
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          <h3 className="text-[12px] font-semibold text-stone-600 px-1 mt-2">รายการในช่วงนี้</h3>
+          {items.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-stone-200 p-10 text-center">
+          <Receipt size={32} className="mx-auto text-stone-300 mb-2" />
+          <p className="text-sm text-stone-500">ไม่มีรายการในช่วงที่เลือก</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── สร้างรูปสรุป (Canvas) ───────────────────────────────────────
+// โครงรูป (top → bottom):
+//   1. หัวข้อ "สรุปยอดเบิกเงิน"
+//   2. วันที่
+//   3. รายการแยกรอบเช้า / รอบเย็น (+ พี่ X แยกท้ายถ้ามี)
+//   4. รวมแต่ละรอบ
+//   5. รายละเอียดการจ่าย (จ่ายเงินสด / โอน/สแกน / พี่ X) - ขนาดรอง
+//   6. หมายเหตุเล็ก ๆ
+//   7. ยอดเบิกรวมสุทธิ - ตัวใหญ่ที่สุด อยู่ล่างสุด
+async function renderSummaryImage(summary, dateLabel, subtitle) {
+  if (document.fonts) {
+    try {
+      await Promise.all([
+        document.fonts.load('700 140px "IBM Plex Sans Thai"'),
+        document.fonts.load('700 48px "IBM Plex Sans Thai"'),
+        document.fonts.load('700 32px "IBM Plex Sans Thai"'),
+        document.fonts.load('700 24px "IBM Plex Sans Thai"'),
+        document.fonts.load('600 30px "IBM Plex Sans Thai"'),
+        document.fonts.load('600 26px "IBM Plex Sans Thai"'),
+        document.fonts.load('500 22px "IBM Plex Sans Thai"'),
+        document.fonts.load('400 18px "IBM Plex Sans Thai"')
+      ]);
+    } catch (e) { /* ignore */ }
+  }
+
+  const W = 1080;
+  const padding = 70;
+  const FONT = '"IBM Plex Sans Thai", "Sarabun", system-ui, sans-serif';
+
+  const groups = { 'เช้า': [], 'เย็น': [], 'X': [] };
+  summary.items.forEach(t => {
+    if (t.paymentMethod === X_PAYMENT) groups.X.push(t);
+    else groups[t.shift].push(t);
+  });
+  ['เช้า', 'เย็น', 'X'].forEach(k => groups[k].sort((a, b) => a.createdAt - b.createdAt));
+
+  // breakdown 2 ตัวเลือก + พี่ X
+  let cash = 0, transfer = 0;
+  summary.yItems.forEach(t => {
+    if (t.paymentMethod === 'จ่ายเงินสด') cash += t.amount;
+    else if (t.paymentMethod === 'โอน/สแกน') transfer += t.amount;
+  });
+  const breakdownLines = [];
+  if (cash > 0) breakdownLines.push(['จ่ายเงินสด', cash, false]);
+  if (transfer > 0) breakdownLines.push(['โอน/สแกน', transfer, false]);
+  if (summary.xTotal > 0) breakdownLines.push(['พี่ X โอนเอง', summary.xTotal, true]);
+
+  // สรุปทีมมีเดีย vs ช่างติดตั้ง
+  const mediaSum = computeMediaSummary(summary.yItems);
+  const showTeamSplit = mediaSum.mediaCount > 0;
+
+  const ITEM_H = 64;
+  const SHIFT_HEAD_H = 50;
+  const SUBTOTAL_H = 80;
+  const X_NOTE_H = 30;
+  const SECTION_GAP = 30;
+
+  const headerH = 265;
+
+  let itemsH;
+  if (summary.count === 0) {
+    itemsH = 200;
+  } else {
+    itemsH = 20;
+    if (groups['เช้า'].length > 0) itemsH += SHIFT_HEAD_H + groups['เช้า'].length * ITEM_H + SUBTOTAL_H + SECTION_GAP;
+    if (groups['เย็น'].length > 0) itemsH += SHIFT_HEAD_H + groups['เย็น'].length * ITEM_H + SUBTOTAL_H + SECTION_GAP;
+    if (groups.X.length > 0) itemsH += SHIFT_HEAD_H + groups.X.length * ITEM_H + SUBTOTAL_H + X_NOTE_H + SECTION_GAP;
+  }
+
+  // กล่อง "สรุปทีมมีเดีย vs ช่างติดตั้ง" — สูงประมาณ 220px ถ้ามี
+  const teamSplitH = showTeamSplit ? 240 : 0;
+  const breakdownH = breakdownLines.length > 0 ? 30 + 40 + 40 + breakdownLines.length * 42 + 20 : 0;
+  const noteH = summary.xTotal > 0 ? 60 : 20;
+  const footerH = 300;
+
+  const H = headerH + itemsH + teamSplitH + breakdownH + noteH + footerH;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#FAFAF9';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#047857';
+  ctx.fillRect(0, 0, W, 8);
+
+  // ═══ HEADER + DATE ═══
+  let y = 90;
+  ctx.fillStyle = '#0c4a3e';
+  ctx.font = `700 48px ${FONT}`;
+  ctx.fillText('สรุปยอดเบิกเงิน', padding, y);
+  y += 50;
+
+  ctx.fillStyle = '#78716c';
+  ctx.font = `500 22px ${FONT}`;
+  ctx.fillText(subtitle || '', padding, y);
+  y += 35;
+
+  ctx.fillStyle = '#1c1917';
+  ctx.font = `600 30px ${FONT}`;
+  ctx.fillText(dateLabel, padding, y);
+  y += 30;
+
+  ctx.strokeStyle = '#e7e5e4';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(padding, y + 20);
+  ctx.lineTo(W - padding, y + 20);
+  ctx.stroke();
+  y += 60;
+
+  // ═══ ITEMS BY SHIFT + SUBTOTALS ═══
+  if (summary.count === 0) {
+    ctx.fillStyle = '#a8a29e';
+    ctx.font = `500 26px ${FONT}`;
+    const txt = 'ไม่มีรายการในวันที่นี้';
+    const tw = ctx.measureText(txt).width;
+    ctx.fillText(txt, (W - tw) / 2, y + 90);
+    y += 200;
+  } else {
+    y += 20;
+
+    const drawShift = (items, accentColor, label, subtotalLabel, isX = false) => {
+      if (items.length === 0) return;
+
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(padding, y, 5, 32);
+
+      ctx.fillStyle = '#1c1917';
+      ctx.font = `600 26px ${FONT}`;
+      ctx.fillText(label, padding + 18, y + 25);
+      y += SHIFT_HEAD_H;
+
+      items.forEach(t => {
+        ctx.fillStyle = '#a8a29e';
+        ctx.font = `500 22px ${FONT}`;
+        ctx.fillText('•', padding + 16, y + 28);
+
+        // Description (with media prefix if applicable)
+        const isMediaItem = t.category === MEDIA_CATEGORY;
+        ctx.fillStyle = isX ? '#78716c' : '#292524';
+        ctx.font = `500 22px ${FONT}`;
+        let desc = t.description;
+        const maxDescW = W - padding * 2 - 280;
+        if (ctx.measureText(desc).width > maxDescW) {
+          while (ctx.measureText(desc + '...').width > maxDescW && desc.length > 0) {
+            desc = desc.slice(0, -1);
+          }
+          desc += '...';
+        }
+        ctx.fillText(desc, padding + 38, y + 24);
+
+        // Category line — มี prefix [มีเดีย: ทีม] ถ้าเป็นทีมมีเดีย
+        ctx.fillStyle = '#a8a29e';
+        ctx.font = `400 16px ${FONT}`;
+        let catLine = t.category;
+        if (isMediaItem) {
+          const teamLabel = t.mediaTeam ? `🎥 ทีมมีเดีย · ${t.mediaTeam}` : '🎥 ทีมมีเดีย';
+          const subTypeLabel = t.mediaSubType ? ` · ${t.mediaSubType}` : '';
+          catLine = `${teamLabel}${subTypeLabel}`;
+          ctx.fillStyle = '#7c3aed';
+          ctx.font = `600 16px ${FONT}`;
+        }
+        ctx.fillText(catLine, padding + 38, y + 48);
+
+        // Attachment indicator
+        if (t.attachments && t.attachments.length > 0) {
+          const catW = ctx.measureText(catLine).width;
+          ctx.fillStyle = '#10b981';
+          ctx.font = `600 16px ${FONT}`;
+          ctx.fillText('● มีหลักฐาน', padding + 38 + catW + 14, y + 48);
+        }
+
+        // Amount
+        ctx.fillStyle = isX ? '#78716c' : '#1c1917';
+        ctx.font = `700 24px ${FONT}`;
+        const amt = `฿${fmt(t.amount)}`;
+        const aw = ctx.measureText(amt).width;
+        ctx.fillText(amt, W - padding - aw, y + 32);
+
+        y += ITEM_H;
+      });
+
+      // Subtotal box
+      const bg = isX ? '#f5f5f4' : '#f0fdf4';
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(padding, y, W - padding * 2, 60, 12);
+      else ctx.rect(padding, y, W - padding * 2, 60);
+      ctx.fill();
+
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(padding, y, 5, 60);
+
+      ctx.fillStyle = isX ? '#78716c' : '#0c4a3e';
+      ctx.font = `600 24px ${FONT}`;
+      ctx.fillText(subtotalLabel, padding + 24, y + 38);
+
+      ctx.font = `700 32px ${FONT}`;
+      const stText = `฿${fmt(items.reduce((s, t) => s + t.amount, 0))}`;
+      const stW = ctx.measureText(stText).width;
+      ctx.fillText(stText, W - padding - 24 - stW, y + 40);
+
+      y += SUBTOTAL_H;
+
+      if (isX) {
+        ctx.fillStyle = '#a8a29e';
+        ctx.font = `400 16px ${FONT}`;
+        ctx.fillText('* ไม่รวมในยอดเบิกที่ต้องจ่ายคืน', padding + 4, y + 18);
+        y += X_NOTE_H;
+      }
+
+      y += SECTION_GAP;
+    };
+
+    drawShift(groups['เช้า'], '#f59e0b', '☀ รอบเช้า', 'รวมรอบเช้า');
+    drawShift(groups['เย็น'], '#6366f1', '☾ รอบเย็น', 'รวมรอบเย็น');
+    drawShift(groups.X, '#a8a29e', 'รายการพี่ X โอนเอง', 'รวมพี่ X โอนเอง', true);
+  }
+
+  // ═══ TEAM SPLIT (ทีมมีเดีย vs ช่างติดตั้ง) ═══
+  if (showTeamSplit) {
+    y += 20;
+
+    // เส้นแบ่ง
+    ctx.strokeStyle = '#e7e5e4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(W - padding, y);
+    ctx.stroke();
+    y += 35;
+
+    ctx.fillStyle = '#1c1917';
+    ctx.font = `700 26px ${FONT}`;
+    ctx.fillText('สรุปตามทีม', padding, y);
+    y += 30;
+
+    // 2 กล่อง side-by-side: ทีมมีเดีย / ช่างติดตั้ง
+    const boxW = (W - padding * 2 - 16) / 2;
+
+    // กล่องทีมมีเดีย
+    ctx.fillStyle = '#faf5ff';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(padding, y, boxW, 90, 12);
+    else ctx.rect(padding, y, boxW, 90);
+    ctx.fill();
+    ctx.fillStyle = '#a855f7';
+    ctx.fillRect(padding, y, 5, 90);
+
+    ctx.fillStyle = '#6b21a8';
+    ctx.font = `600 22px ${FONT}`;
+    ctx.fillText('🎥 ทีมมีเดีย', padding + 18, y + 32);
+    ctx.font = `700 30px ${FONT}`;
+    ctx.fillText(`฿${fmt(mediaSum.mediaTotal)}`, padding + 18, y + 70);
+
+    // กล่องช่างติดตั้ง
+    ctx.fillStyle = '#fff7ed';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(padding + boxW + 16, y, boxW, 90, 12);
+    else ctx.rect(padding + boxW + 16, y, boxW, 90);
+    ctx.fill();
+    ctx.fillStyle = '#f97316';
+    ctx.fillRect(padding + boxW + 16, y, 5, 90);
+
+    ctx.fillStyle = '#9a3412';
+    ctx.font = `600 22px ${FONT}`;
+    ctx.fillText('🔧 ช่างติดตั้ง', padding + boxW + 34, y + 32);
+    ctx.font = `700 30px ${FONT}`;
+    ctx.fillText(`฿${fmt(mediaSum.installerTotal)}`, padding + boxW + 34, y + 70);
+
+    y += 100;
+
+    // รายละเอียดย่อยทีมมีเดีย
+    ctx.fillStyle = '#7c3aed';
+    ctx.font = `500 18px ${FONT}`;
+    let detailParts = [];
+    if (mediaSum.sub.fuel > 0) detailParts.push(`ค่าน้ำมัน ฿${fmt(mediaSum.sub.fuel)}`);
+    if (mediaSum.sub.toll > 0) detailParts.push(`ค่าทางด่วน ฿${fmt(mediaSum.sub.toll)}`);
+    if (mediaSum.sub.other > 0) detailParts.push(`ค่าอื่น ๆ ฿${fmt(mediaSum.sub.other)}`);
+    if (detailParts.length > 0) {
+      ctx.fillText(`มีเดีย: ${detailParts.join(' · ')}`, padding, y + 18);
+      y += 28;
+    }
+    if (mediaSum.totalDistance > 0) {
+      ctx.fillStyle = '#a855f7';
+      ctx.font = `500 18px ${FONT}`;
+      ctx.fillText(`ระยะทางรวม ${mediaSum.totalDistance.toFixed(1)} กม.`, padding, y + 18);
+      y += 28;
+    }
+    y += 10;
+  }
+
+  // ═══ PAYMENT BREAKDOWN (ขนาดรอง) ═══
+  if (breakdownLines.length > 0) {
+    y += 30;
+    ctx.strokeStyle = '#e7e5e4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(W - padding, y);
+    ctx.stroke();
+    y += 40;
+
+    ctx.fillStyle = '#78716c';
+    ctx.font = `500 22px ${FONT}`;
+    ctx.fillText('รายละเอียดการจ่าย', padding, y);
+    y += 40;
+
+    breakdownLines.forEach(([label, amount, faded]) => {
+      ctx.fillStyle = faded ? '#a8a29e' : '#57534e';
+      ctx.font = `500 22px ${FONT}`;
+      ctx.fillText(label, padding + 8, y + 22);
+
+      ctx.fillStyle = faded ? '#a8a29e' : '#1c1917';
+      ctx.font = `600 24px ${FONT}`;
+      const t = `฿${fmt(amount)}`;
+      const tw = ctx.measureText(t).width;
+      ctx.fillText(t, W - padding - tw, y + 22);
+
+      y += 42;
+    });
+    y += 20;
+  }
+
+  // ═══ NOTE ═══
+  if (summary.xTotal > 0) {
+    ctx.fillStyle = '#a8a29e';
+    ctx.font = `400 17px ${FONT}`;
+    ctx.fillText('* รายการ "พี่ X โอนเอง" บันทึกเพื่อเก็บข้อมูล แต่ไม่รวมในยอดเบิก', padding, y + 22);
+  }
+
+  // ═══ ยอดเบิกรวมสุทธิ (ใหญ่ที่สุด อยู่ล่างสุด) ═══
+  const blockY = H - footerH;
+
+  ctx.fillStyle = '#064e3b';
+  ctx.fillRect(0, blockY, W, footerH);
+
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(0, blockY, W, 5);
+
+  ctx.fillStyle = '#a7f3d0';
+  ctx.font = `500 28px ${FONT}`;
+  ctx.fillText('ยอดเบิกรวมสุทธิ', padding, blockY + 70);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `700 140px ${FONT}`;
+  ctx.fillText(`฿${fmt(summary.total)}`, padding, blockY + 215);
+
+  ctx.fillStyle = '#6ee7b7';
+  ctx.font = `400 18px ${FONT}`;
+  ctx.fillText(`(${fmtInt(summary.yCount)} รายการ ไม่รวมพี่ X จ่ายเอง)`, padding, blockY + 255);
+
+  return canvas;
+}
+
+// ─── Modal ตัวอย่างรูป ──────────────────────────────────────────
+function ImagePreviewModal({ canvas, filename, onClose }) {
+  const [imgUrl, setImgUrl] = useState(null);
+
+  useEffect(() => {
+    if (!canvas) return;
+    let url;
+    canvas.toBlob(blob => {
+      if (blob) {
+        url = URL.createObjectURL(blob);
+        setImgUrl(url);
+      }
+    }, 'image/png');
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [canvas]);
+
+  const download = () => {
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-4 max-w-md w-full max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3 flex-shrink-0">
+          <div>
+            <h3 className="text-base font-semibold text-stone-900">รูปสรุปส่งพี่ X</h3>
+            <p className="text-[11px] text-stone-500">บันทึกแล้วส่งทาง LINE ได้เลย</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 grid place-items-center rounded-full hover:bg-stone-100">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto bg-stone-100 rounded-xl p-3 mb-3 flex justify-center">
+          {imgUrl ? (
+            <img src={imgUrl} alt="สรุปยอด" className="w-full max-w-sm rounded-lg shadow-md" />
+          ) : (
+            <div className="text-stone-400 text-sm py-10">กำลังสร้างรูป...</div>
+          )}
+        </div>
+
+        <button
+          onClick={download}
+          disabled={!imgUrl}
+          className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2"
+        >
+          <Download size={16} />ดาวน์โหลดรูป
+        </button>
+        <p className="text-[10.5px] text-stone-400 text-center mt-2">
+          กดค้างที่รูปเพื่อบันทึกลงเครื่อง หรือกดดาวน์โหลดด้านบน
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal ดูไฟล์แนบ ───────────────────────────────────────────
+function AttachmentViewer({ attachments, onClose }) {
+  const [selected, setSelected] = useState(0);
+  const [dataUrls, setDataUrls] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const urls = {};
+      await Promise.all(
+        attachments.map(async (att) => {
+          const v = await loadAttachment(att.id);
+          if (v) urls[att.id] = v;
+        })
+      );
+      if (!cancelled) {
+        setDataUrls(urls);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [attachments]);
+
+  const att = attachments[selected];
+  const url = att ? dataUrls[att.id] : null;
+  const isPdf = att && att.type === 'application/pdf';
+
+  const downloadCurrent = () => {
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = att.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const next = () => setSelected(s => Math.min(s + 1, attachments.length - 1));
+  const prev = () => setSelected(s => Math.max(s - 1, 0));
+
+  return (
+    <div className="fixed inset-0 bg-black/90 z-50 flex flex-col" onClick={onClose}>
+      <div className="bg-stone-900 text-white px-4 py-3 flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="w-8 h-8 grid place-items-center rounded-full hover:bg-stone-800">
+          <X size={18} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium truncate">{att?.name || 'หลักฐาน'}</p>
+          <p className="text-[10.5px] text-stone-400">
+            {selected + 1} / {attachments.length} {att && `· ${isPdf ? 'PDF' : 'รูป'}`}
+          </p>
+        </div>
+        {url && (
+          <button onClick={downloadCurrent} className="w-8 h-8 grid place-items-center rounded-full hover:bg-stone-800">
+            <Download size={16} />
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-auto flex items-center justify-center p-3" onClick={e => e.stopPropagation()}>
+        {loading ? (
+          <div className="text-stone-400 text-sm">กำลังโหลด...</div>
+        ) : !url ? (
+          <div className="text-stone-400 text-sm text-center">
+            <AlertCircle size={28} className="mx-auto mb-2" />
+            ไม่พบไฟล์แนบ — อาจถูกลบไปแล้ว
+          </div>
+        ) : isPdf ? (
+          <iframe src={url} title={att.name} className="w-full h-full bg-white rounded" />
+        ) : (
+          <img src={url} alt={att.name} className="max-w-full max-h-full rounded shadow-2xl" />
+        )}
+      </div>
+
+      {attachments.length > 1 && (
+        <div className="bg-stone-900 px-3 py-2 flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+          <button onClick={prev} disabled={selected === 0}
+            className="w-8 h-8 grid place-items-center rounded-full bg-stone-800 text-white disabled:opacity-30 hover:bg-stone-700">
+            <ChevronLeft size={16} />
+          </button>
+          <div className="flex-1 flex gap-1.5 overflow-x-auto justify-center">
+            {attachments.map((a, i) => (
+              <button key={a.id} onClick={() => setSelected(i)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap ${
+                  i === selected ? 'bg-white text-stone-900' : 'bg-stone-700 text-stone-200 hover:bg-stone-600'
+                }`}>
+                {i + 1}
+              </button>
+            ))}
+          </div>
+          <button onClick={next} disabled={selected === attachments.length - 1}
+            className="w-8 h-8 grid place-items-center rounded-full bg-stone-800 text-white disabled:opacity-30 hover:bg-stone-700">
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Mount ───────────────────────────────────────────────────────
+const _root = ReactDOM.createRoot(document.getElementById("root"));
+_root.render(<PettyCashSystem />);
+  </script>
+
+  <script>
+    // ซ่อน loading หลัง React mount เสร็จ
+    const observer = new MutationObserver(() => {
+      const root = document.getElementById('root');
+      if (root && root.children.length > 0) {
+        document.getElementById('loading')?.classList.add('gone');
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.getElementById('root'), { childList: true });
+
+    // Fallback: ซ่อน loading หลัง 8 วินาทีไม่ว่ายังไง
+    setTimeout(() => {
+      document.getElementById('loading')?.classList.add('gone');
+    }, 8000);
+  </script>
+</body>
+</html>

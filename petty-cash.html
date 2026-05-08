@@ -133,13 +133,11 @@ const ChevronRight = (p) => <_Icon {...p}><path d="m9 18 6-6-6-6"/></_Icon>;
 // ─── ค่าคงที่ตามสเปคใหม่ ─────────────────────────────────────────
 const CATEGORIES = [
   "ซื้อของหน้าร้าน",
-  "ค่าน้ำมัน",
-  "ค่าวัสดุผลิต",
-  "ค่าอุปกรณ์ช่าง",
-  "ค่าขนส่ง",
-  "ค่าแรง / ค่าจ้าง",
-  "ค่าอาหาร / น้ำ",
+  "สดย่อย",
+  "จ้างรถ",
+  "ช่างติดตั้ง",
   "ทีมมีเดีย",
+  "OT",
   "อื่น ๆ"
 ];
 
@@ -149,11 +147,43 @@ const SHIFTS = ["เช้า", "เย็น"];
 const PAYMENT_METHODS = ["จ่ายเงินสด", "โอน/สแกน", "พี่ X โอนเอง"];
 const X_PAYMENT = "พี่ X โอนเอง";
 
+// ─── ช่างติดตั้ง ─────
+const INSTALLER_CATEGORY = "ช่างติดตั้ง";
+const INSTALLER_TEAMS = ["ทีมกุ่ง", "ทีมพี่วัฒน์", "ทีมเดือน / เล็ก / เล", "ทีมพี่เอก", "อื่น ๆ"];
+const INSTALLER_SUBTYPES = ["ค่าใช้จ่ายอื่น ๆ ในทีม", "ค่าข้าวออกนอกพื้นที่", "ค่าน้ำมัน", "ค่าทางด่วน"];
+
 // ─── ทีมมีเดีย ─────
 const MEDIA_CATEGORY = "ทีมมีเดีย";
 const MEDIA_TEAMS = ["ต่อ", "อู๋", "ต่อ + อู๋", "อื่น ๆ"];
-const MEDIA_SUBTYPES = ["ค่าน้ำมัน", "ค่าทางด่วน", "ค่าอื่น ๆ"];
-const MEDIA_FUEL = "ค่าน้ำมัน";
+const MEDIA_SUBTYPES = ["ค่าน้ำมัน", "ค่าทางด่วน", "ค่าใช้จ่ายอื่น ๆ"];
+
+// ─── OT ─────
+const OT_CATEGORY = "OT";
+const OT_DEFAULT_RATE = 70;
+
+// ─── ประเภทย่อยที่กระตุ้นฟอร์มไมล์ ─────
+const FUEL_SUBTYPE = "ค่าน้ำมัน";
+
+// ─── helper: หมวดที่ต้องเลือกทีม + subtype ─────
+const TEAM_CATEGORIES = [INSTALLER_CATEGORY, MEDIA_CATEGORY];
+function getTeamsFor(category) {
+  if (category === INSTALLER_CATEGORY) return INSTALLER_TEAMS;
+  if (category === MEDIA_CATEGORY) return MEDIA_TEAMS;
+  return [];
+}
+function getSubtypesFor(category) {
+  if (category === INSTALLER_CATEGORY) return INSTALLER_SUBTYPES;
+  if (category === MEDIA_CATEGORY) return MEDIA_SUBTYPES;
+  return [];
+}
+
+// ─── คำนวณเรทค่าน้ำมันตามระยะทาง ─────
+//   ≤ 120 กม. → 6 บาท/กม.
+//   > 120 กม. → 5 บาท/กม.
+function fuelRateFor(distance) {
+  if (distance == null || isNaN(distance)) return null;
+  return distance <= 120 ? 6 : 5;
+}
 
 const STORAGE_KEY_V3 = "petty_cash_v3";
 const STORAGE_KEY_V2 = "petty_cash_v2";
@@ -213,28 +243,70 @@ function computeSummary(transactions, filterFn) {
 }
 
 // สรุปยอดทีมมีเดีย (เฉพาะที่ไม่ใช่พี่ X จ่ายเอง)
-function computeMediaSummary(items) {
-  const media = items.filter(t => t.category === MEDIA_CATEGORY && t.paymentMethod !== X_PAYMENT);
-  const installer = items.filter(t => t.category !== MEDIA_CATEGORY && t.paymentMethod !== X_PAYMENT);
-  const sub = { fuel: 0, toll: 0, other: 0 };
-  let totalDistance = 0;
-  media.forEach(t => {
-    if (t.mediaSubType === MEDIA_FUEL) sub.fuel += t.amount;
-    else if (t.mediaSubType === "ค่าทางด่วน") sub.toll += t.amount;
-    else sub.other += t.amount;
-    if (t.mileage && t.mileage.distance) totalDistance += t.mileage.distance;
+// computeTeamSummary — แยกยอดตามทีม / OT
+//   media     = หมวดทีมมีเดีย (ไม่นับพี่ X)
+//   installer = หมวดช่างติดตั้ง (ไม่นับพี่ X)
+//   ot        = หมวด OT (ไม่นับพี่ X)
+//   other     = หมวดที่เหลือ (ไม่นับพี่ X)
+function computeTeamSummary(items) {
+  const ofCat = (cat) => items.filter(t =>
+    t.category === cat && t.paymentMethod !== X_PAYMENT
+  );
+  const media = ofCat(MEDIA_CATEGORY);
+  const installer = ofCat(INSTALLER_CATEGORY);
+  const ot = ofCat(OT_CATEGORY);
+  const other = items.filter(t =>
+    t.category !== MEDIA_CATEGORY &&
+    t.category !== INSTALLER_CATEGORY &&
+    t.category !== OT_CATEGORY &&
+    t.paymentMethod !== X_PAYMENT
+  );
+
+  // breakdown ทีมมีเดียตามประเภทย่อย
+  const computeSub = (group) => {
+    const sub = { fuel: 0, toll: 0, other: 0, food: 0 };
+    let totalDistance = 0;
+    group.forEach(t => {
+      const st = t.subType || t.mediaSubType || "";
+      if (st === FUEL_SUBTYPE) sub.fuel += t.amount;
+      else if (st === "ค่าทางด่วน") sub.toll += t.amount;
+      else if (st === "ค่าข้าวออกนอกพื้นที่") sub.food += t.amount;
+      else sub.other += t.amount;
+      if (t.mileage && t.mileage.distance) totalDistance += t.mileage.distance;
+    });
+    return { sub, totalDistance };
+  };
+
+  const mediaDetail = computeSub(media);
+  const installerDetail = computeSub(installer);
+
+  // OT — รวมจำนวนคนทั้งหมด
+  let otTotalPeople = 0;
+  ot.forEach(t => {
+    if (t.ot && t.ot.count) otTotalPeople += t.ot.count;
   });
+
+  // helper: ดูว่ามียอด installer หรือไม่
   return {
-    media,
-    installer,
+    media, installer, ot, other,
     mediaTotal: media.reduce((s, t) => s + t.amount, 0),
     installerTotal: installer.reduce((s, t) => s + t.amount, 0),
+    otTotal: ot.reduce((s, t) => s + t.amount, 0),
+    otherTotal: other.reduce((s, t) => s + t.amount, 0),
     mediaCount: media.length,
     installerCount: installer.length,
-    sub,
-    totalDistance
+    otCount: ot.length,
+    otherCount: other.length,
+    mediaSub: mediaDetail.sub,
+    mediaDistance: mediaDetail.totalDistance,
+    installerSub: installerDetail.sub,
+    installerDistance: installerDetail.totalDistance,
+    otTotalPeople
   };
 }
+
+// alias เพื่อ backward compat (ใน UI ที่เรียก computeMediaSummary)
+const computeMediaSummary = computeTeamSummary;
 
 // ─── ระบบไฟล์แนบ ─────────────────────────────────────────────────
 function compressImage(file) {
@@ -514,10 +586,13 @@ function AddView({ onAdd }) {
     amount: "",
     paymentMethod: PAYMENT_METHODS[0],
     note: "",
-    // ทีมมีเดีย
-    mediaTeam: MEDIA_TEAMS[0],
-    mediaSubType: MEDIA_SUBTYPES[0],
-    mileage: { before: "", after: "", rate: "", tollFee: "" }
+    // ทีม + ประเภทย่อย (ใช้ร่วมระหว่างช่างติดตั้ง / ทีมมีเดีย)
+    team: "",
+    subType: "",
+    // ฟอร์มไมล์ — ใช้เมื่อ subType = "ค่าน้ำมัน"
+    mileage: { before: "", after: "", tollFee: "", otherCost: "" },
+    // ฟอร์ม OT
+    ot: { workers: "", count: "", rate: OT_DEFAULT_RATE }
   });
   const [pendingFiles, setPendingFiles] = useState([]);
   const [errors, setErrors] = useState({});
@@ -529,37 +604,79 @@ function AddView({ onAdd }) {
     if (errors[key]) setErrors(e => ({ ...e, [key]: null }));
   };
 
-  // คำนวณค่าน้ำมันอัตโนมัติ
+  // เซ็ต team และ subType อัตโนมัติเมื่อเปลี่ยนหมวด
+  const isInstaller = form.category === INSTALLER_CATEGORY;
   const isMedia = form.category === MEDIA_CATEGORY;
-  const isMediaFuel = isMedia && form.mediaSubType === MEDIA_FUEL;
+  const isOT = form.category === OT_CATEGORY;
+  const isTeamCategory = isInstaller || isMedia;
+  const teams = getTeamsFor(form.category);
+  const subTypes = getSubtypesFor(form.category);
+
+  // เมื่อเปลี่ยน category — ตั้ง team/subType เริ่มต้นให้ตรง
+  useEffect(() => {
+    if (isTeamCategory) {
+      setForm(f => ({
+        ...f,
+        team: teams[0] || "",
+        subType: subTypes[0] || ""
+      }));
+    } else {
+      setForm(f => ({ ...f, team: "", subType: "" }));
+    }
+    // eslint-disable-next-line
+  }, [form.category]);
+
+  const isFuelSubtype = isTeamCategory && form.subType === FUEL_SUBTYPE;
   const mileage = form.mileage;
+
   const distance = useMemo(() => {
     const b = parseFloat(mileage.before);
     const a = parseFloat(mileage.after);
     if (isNaN(b) || isNaN(a)) return null;
     return Math.max(0, a - b);
   }, [mileage.before, mileage.after]);
-  const fuelCost = useMemo(() => {
-    const r = parseFloat(mileage.rate);
-    if (distance === null || isNaN(r)) return null;
-    return distance * r;
-  }, [distance, mileage.rate]);
-  const mileageTotal = useMemo(() => {
-    const f = fuelCost ?? 0;
-    const t = parseFloat(mileage.tollFee) || 0;
-    if (fuelCost === null) return null;
-    return f + t;
-  }, [fuelCost, mileage.tollFee]);
 
-  // Auto-fill amount จากตัวคำนวณ
+  // เรทคำนวณอัตโนมัติ: ≤120 = 6, >120 = 5
+  const fuelRate = useMemo(() => fuelRateFor(distance), [distance]);
+
+  const fuelCost = useMemo(() => {
+    if (distance === null || fuelRate === null) return null;
+    return distance * fuelRate;
+  }, [distance, fuelRate]);
+
+  const mileageTotal = useMemo(() => {
+    if (fuelCost === null) return null;
+    const t = parseFloat(mileage.tollFee) || 0;
+    const o = parseFloat(mileage.otherCost) || 0;
+    return fuelCost + t + o;
+  }, [fuelCost, mileage.tollFee, mileage.otherCost]);
+
+  // Auto-fill amount จากตัวคำนวณไมล์
   useEffect(() => {
-    if (isMediaFuel && mileageTotal !== null) {
+    if (isFuelSubtype && mileageTotal !== null) {
       setForm(f => ({ ...f, amount: mileageTotal.toFixed(2) }));
     }
-  }, [isMediaFuel, mileageTotal]);
+  }, [isFuelSubtype, mileageTotal]);
+
+  // Auto-fill amount จาก OT
+  const otTotal = useMemo(() => {
+    const c = parseFloat(form.ot.count);
+    const r = parseFloat(form.ot.rate);
+    if (isNaN(c) || isNaN(r)) return null;
+    return c * r;
+  }, [form.ot.count, form.ot.rate]);
+
+  useEffect(() => {
+    if (isOT && otTotal !== null) {
+      setForm(f => ({ ...f, amount: otTotal.toFixed(2) }));
+    }
+  }, [isOT, otTotal]);
 
   const updateMileage = (key, val) => {
     setForm(f => ({ ...f, mileage: { ...f.mileage, [key]: val } }));
+  };
+  const updateOT = (key, val) => {
+    setForm(f => ({ ...f, ot: { ...f.ot, [key]: val } }));
   };
 
   const handleFilePick = (e) => {
@@ -621,21 +738,31 @@ function AddView({ onAdd }) {
       paymentMethod: form.paymentMethod,
       note: form.note.trim(),
       attachments,
-      // ทีมมีเดีย — เก็บเฉพาะถ้าหมวดเป็นทีมมีเดีย
-      ...(isMedia ? {
-        mediaTeam: form.mediaTeam,
-        mediaSubType: form.mediaSubType,
-        ...(isMediaFuel && distance !== null ? {
+      // ทีม + ประเภทย่อย (ช่างติดตั้ง / ทีมมีเดีย)
+      ...(isTeamCategory ? {
+        team: form.team,
+        subType: form.subType,
+        ...(isFuelSubtype && distance !== null ? {
           mileage: {
             before: parseFloat(form.mileage.before),
             after: parseFloat(form.mileage.after),
             distance,
-            rate: parseFloat(form.mileage.rate) || 0,
+            rate: fuelRate || 0,
             fuelCost: fuelCost || 0,
             tollFee: parseFloat(form.mileage.tollFee) || 0,
+            otherCost: parseFloat(form.mileage.otherCost) || 0,
             total: mileageTotal || 0
           }
         } : {})
+      } : {}),
+      // OT
+      ...(isOT ? {
+        ot: {
+          workers: form.ot.workers.trim(),
+          count: parseFloat(form.ot.count) || 0,
+          rate: parseFloat(form.ot.rate) || OT_DEFAULT_RATE,
+          total: otTotal || 0
+        }
       } : {})
     });
 
@@ -647,9 +774,10 @@ function AddView({ onAdd }) {
       amount: "",
       paymentMethod: PAYMENT_METHODS[0],
       note: "",
-      mediaTeam: MEDIA_TEAMS[0],
-      mediaSubType: MEDIA_SUBTYPES[0],
-      mileage: { before: "", after: "", rate: "", tollFee: "" }
+      team: "",
+      subType: "",
+      mileage: { before: "", after: "", tollFee: "", otherCost: "" },
+      ot: { workers: "", count: "", rate: OT_DEFAULT_RATE }
     });
     setPendingFiles([]);
     setSubmitting(false);
@@ -713,42 +841,40 @@ function AddView({ onAdd }) {
           </select>
         </Field>
 
-        {/* ─── ฟิลด์เพิ่มเติมสำหรับทีมมีเดีย ─── */}
-        {isMedia && (
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 space-y-3">
-            <p className="text-[12px] font-semibold text-purple-900 flex items-center gap-1">
-              🎥 รายละเอียดทีมมีเดีย
+        {/* ─── ฟิลด์เพิ่มเติมสำหรับช่างติดตั้ง / ทีมมีเดีย ─── */}
+        {isTeamCategory && (
+          <div className={`${isInstaller ? "bg-orange-50 border-orange-200" : "bg-purple-50 border-purple-200"} border rounded-xl p-3 space-y-3`}>
+            <p className={`text-[12px] font-semibold flex items-center gap-1 ${isInstaller ? "text-orange-900" : "text-purple-900"}`}>
+              {isInstaller ? "🔧 รายละเอียดช่างติดตั้ง" : "🎥 รายละเอียดทีมมีเดีย"}
             </p>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="ผู้ไปงาน">
+              <Field label={isInstaller ? "ทีม" : "ผู้ไปงาน"}>
                 <select
-                  value={form.mediaTeam}
-                  onChange={e => update("mediaTeam", e.target.value)}
-                  className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={form.team}
+                  onChange={e => update("team", e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 ${isInstaller ? "border-orange-300 focus:ring-orange-500" : "border-purple-300 focus:ring-purple-500"}`}
                 >
-                  {MEDIA_TEAMS.map(t => <option key={t}>{t}</option>)}
+                  {teams.map(t => <option key={t}>{t}</option>)}
                 </select>
               </Field>
-              <Field label="ประเภทค่าใช้จ่าย">
+              <Field label="ประเภทรายการ">
                 <select
-                  value={form.mediaSubType}
-                  onChange={e => update("mediaSubType", e.target.value)}
-                  className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={form.subType}
+                  onChange={e => update("subType", e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 ${isInstaller ? "border-orange-300 focus:ring-orange-500" : "border-purple-300 focus:ring-purple-500"}`}
                 >
-                  {MEDIA_SUBTYPES.map(s => <option key={s}>{s}</option>)}
+                  {subTypes.map(s => <option key={s}>{s}</option>)}
                 </select>
               </Field>
             </div>
 
-            {isMediaFuel && (
-              <div className="bg-white rounded-lg p-3 border border-purple-200">
+            {isFuelSubtype && (
+              <div className="bg-white rounded-lg p-3 border border-stone-200">
                 <p className="text-[11.5px] font-semibold text-stone-700 mb-2">⛽ คำนวณค่าน้ำมัน</p>
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="เลขไมล์ก่อนออก">
                     <input
-                      type="number"
-                      step="0.1"
-                      inputMode="decimal"
+                      type="number" step="0.1" inputMode="decimal"
                       value={form.mileage.before}
                       onChange={e => updateMileage("before", e.target.value)}
                       placeholder="0"
@@ -757,9 +883,7 @@ function AddView({ onAdd }) {
                   </Field>
                   <Field label="เลขไมล์หลังกลับ">
                     <input
-                      type="number"
-                      step="0.1"
-                      inputMode="decimal"
+                      type="number" step="0.1" inputMode="decimal"
                       value={form.mileage.after}
                       onChange={e => updateMileage("after", e.target.value)}
                       placeholder="0"
@@ -767,53 +891,111 @@ function AddView({ onAdd }) {
                     />
                   </Field>
                 </div>
+
                 <div className="bg-stone-50 px-2.5 py-1.5 rounded-lg my-2 flex items-center justify-between text-[12px]">
                   <span className="text-stone-600">ระยะทางรวม</span>
                   <span className="font-bold text-stone-900 font-mono">
                     {distance !== null ? `${distance.toFixed(1)} กม.` : "—"}
                   </span>
                 </div>
+
+                <div className="bg-stone-50 px-2.5 py-1.5 rounded-lg my-2 flex items-center justify-between text-[12px]">
+                  <span className="text-stone-600">
+                    เรทค่าน้ำมัน <span className="text-stone-400">(อัตโนมัติ)</span>
+                  </span>
+                  <span className="font-bold text-stone-900 font-mono">
+                    {fuelRate !== null
+                      ? `฿${fuelRate}/กม. ${distance <= 120 ? "(≤120 กม.)" : "(>120 กม.)"}`
+                      : "—"}
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="เรทค่าน้ำมัน (บาท/กม.)">
-                    <input
-                      type="number"
-                      step="0.01"
-                      inputMode="decimal"
-                      value={form.mileage.rate}
-                      onChange={e => updateMileage("rate", e.target.value)}
-                      placeholder="เช่น 5"
-                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
-                    />
-                  </Field>
                   <Field label="ค่าทางด่วน (บาท)">
                     <input
-                      type="number"
-                      step="0.01"
-                      inputMode="decimal"
+                      type="number" step="0.01" inputMode="decimal"
                       value={form.mileage.tollFee}
                       onChange={e => updateMileage("tollFee", e.target.value)}
                       placeholder="0"
                       className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
                     />
                   </Field>
+                  <Field label="ค่าอื่น ๆ (บาท)">
+                    <input
+                      type="number" step="0.01" inputMode="decimal"
+                      value={form.mileage.otherCost}
+                      onChange={e => updateMileage("otherCost", e.target.value)}
+                      placeholder="0"
+                      className="w-full px-2 py-1.5 border border-stone-300 rounded-lg text-[13px] font-mono"
+                    />
+                  </Field>
                 </div>
+
                 <div className="bg-stone-50 px-2.5 py-1.5 rounded-lg mt-2 flex items-center justify-between text-[12px]">
                   <span className="text-stone-600">ค่าน้ำมัน</span>
                   <span className="font-mono text-stone-700">
                     {fuelCost !== null ? `฿${fmt(fuelCost)}` : "—"}
                   </span>
                 </div>
-                <div className="bg-purple-100 px-2.5 py-2 rounded-lg mt-2 flex items-center justify-between">
-                  <span className="text-[12px] font-semibold text-purple-900">ยอดรวมรายการ</span>
-                  <span className="text-[15px] font-bold text-purple-900 font-mono">
+
+                <div className={`px-2.5 py-2 rounded-lg mt-2 flex items-center justify-between ${isInstaller ? "bg-orange-100" : "bg-purple-100"}`}>
+                  <span className={`text-[12px] font-semibold ${isInstaller ? "text-orange-900" : "text-purple-900"}`}>ยอดรวมรายการ</span>
+                  <span className={`text-[15px] font-bold font-mono ${isInstaller ? "text-orange-900" : "text-purple-900"}`}>
                     {mileageTotal !== null ? `฿${fmt(mileageTotal)}` : "—"}
                   </span>
                 </div>
+
                 <p className="text-[10.5px] text-stone-500 mt-2">
-                  * ยอดรวมจะเติมในช่อง "จำนวนเงิน" ให้อัตโนมัติ
+                  * เรทคิดจากระยะทาง: ≤120 กม. = 6 บาท/กม., {">"}120 กม. = 5 บาท/กม. — ยอดรวมเติมในช่อง "จำนวนเงิน" อัตโนมัติ
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ─── ฟิลด์เพิ่มเติมสำหรับ OT ─── */}
+        {isOT && (
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-3">
+            <p className="text-[12px] font-semibold text-rose-900 flex items-center gap-1">
+              ⏰ รายละเอียด OT
+            </p>
+            <Field label="รายชื่อคนทำ OT">
+              <textarea
+                value={form.ot.workers}
+                onChange={e => updateOT("workers", e.target.value)}
+                rows={2}
+                placeholder="เช่น สมชาย, ประยุทธ์, สมศรี"
+                className="w-full px-3 py-2 border border-rose-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="จำนวนคน">
+                <input
+                  type="number" step="1" inputMode="numeric"
+                  value={form.ot.count}
+                  onChange={e => updateOT("count", e.target.value)}
+                  placeholder="0"
+                  className="w-full px-2 py-1.5 border border-rose-300 rounded-lg text-[13px] font-mono"
+                />
+              </Field>
+              <Field label="เรทต่อคน (บาท)">
+                <input
+                  type="number" step="1" inputMode="numeric"
+                  value={form.ot.rate}
+                  onChange={e => updateOT("rate", e.target.value)}
+                  className="w-full px-2 py-1.5 border border-rose-300 rounded-lg text-[13px] font-mono"
+                />
+              </Field>
+            </div>
+            <div className="bg-rose-100 px-2.5 py-2 rounded-lg flex items-center justify-between">
+              <span className="text-[12px] font-semibold text-rose-900">ยอดรวม OT</span>
+              <span className="text-[15px] font-bold text-rose-900 font-mono">
+                {otTotal !== null ? `฿${fmt(otTotal)}` : "—"}
+              </span>
+            </div>
+            <p className="text-[10.5px] text-stone-500">
+              * ยอดรวม = จำนวนคน × เรทต่อคน — เติมในช่อง "จำนวนเงิน" อัตโนมัติ
+            </p>
           </div>
         )}
 
@@ -821,7 +1003,12 @@ function AddView({ onAdd }) {
           <input
             value={form.description}
             onChange={e => update("description", e.target.value)}
-            placeholder={isMedia ? "เช่น ถ่ายงานลูกค้า A, ไปจังหวัดนนทบุรี" : "เช่น ซื้อนอต, จ้างรถส่งของ"}
+            placeholder={
+              isInstaller ? "เช่น งานติดตั้งบ้านลูกค้า A" :
+              isMedia ? "เช่น ถ่ายงานลูกค้า A" :
+              isOT ? "เช่น OT วันเสาร์" :
+              "เช่น ซื้อนอต, จ้างรถส่งของ"
+            }
             className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </Field>
@@ -1093,10 +1280,22 @@ function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
   const isX = tx.paymentMethod === X_PAYMENT;
   const isCancelled = tx.cancelled;
   const hasAtts = tx.attachments && tx.attachments.length > 0;
+  const isInstaller = tx.category === INSTALLER_CATEGORY;
   const isMedia = tx.category === MEDIA_CATEGORY;
+  const isOT = tx.category === OT_CATEGORY;
+  // รองรับ legacy field (mediaTeam, mediaSubType) ที่อาจยังอยู่ในข้อมูลเก่า
+  const team = tx.team || tx.mediaTeam || "";
+  const subType = tx.subType || tx.mediaSubType || "";
+
+  const borderClass = isCancelled
+    ? "border-stone-200 opacity-60"
+    : isInstaller ? "border-orange-200 border-l-4"
+    : isMedia ? "border-purple-200 border-l-4"
+    : isOT ? "border-rose-200 border-l-4"
+    : "border-stone-200";
 
   return (
-    <div className={`bg-white rounded-2xl border p-3.5 shadow-sm ${isCancelled ? "border-stone-200 opacity-60" : isMedia ? "border-purple-200 border-l-4" : "border-stone-200"}`}>
+    <div className={`bg-white rounded-2xl border p-3.5 shadow-sm ${borderClass}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
@@ -1107,9 +1306,19 @@ function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
               {tx.shift}
             </span>
             <span className="text-[11px] text-stone-500">{tx.date}</span>
+            {isInstaller && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 font-semibold">
+                🔧 ช่างติดตั้ง{team ? ` · ${team}` : ""}
+              </span>
+            )}
             {isMedia && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold">
-                🎥 ทีมมีเดีย{tx.mediaTeam ? ` · ${tx.mediaTeam}` : ""}
+                🎥 ทีมมีเดีย{team ? ` · ${team}` : ""}
+              </span>
+            )}
+            {isOT && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-semibold">
+                ⏰ OT
               </span>
             )}
             {isX && (
@@ -1135,17 +1344,30 @@ function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
           </p>
           {tx.note && <p className="text-[11.5px] text-stone-500 mt-0.5">{tx.note}</p>}
 
-          {/* รายละเอียดทีมมีเดีย */}
-          {isMedia && tx.mediaSubType && (
+          {/* รายละเอียดทีม (ช่างติดตั้ง / ทีมมีเดีย) */}
+          {(isInstaller || isMedia) && subType && (
             <div className="mt-1.5 flex items-center gap-1.5 text-[11px] flex-wrap">
-              <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-medium">
-                {tx.mediaSubType}
+              <span className={`px-1.5 py-0.5 rounded font-medium ${isInstaller ? "bg-orange-50 text-orange-700" : "bg-purple-50 text-purple-700"}`}>
+                {subType}
               </span>
               {tx.mileage && (
                 <span className="text-stone-500 font-mono">
                   {tx.mileage.distance.toFixed(1)} กม. × ฿{tx.mileage.rate}
                   {tx.mileage.tollFee > 0 && ` + ค่าด่วน ฿${fmt(tx.mileage.tollFee)}`}
+                  {tx.mileage.otherCost > 0 && ` + อื่นๆ ฿${fmt(tx.mileage.otherCost)}`}
                 </span>
+              )}
+            </div>
+          )}
+
+          {/* รายละเอียด OT */}
+          {isOT && tx.ot && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] flex-wrap">
+              <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded font-medium font-mono">
+                {tx.ot.count} คน × ฿{tx.ot.rate}
+              </span>
+              {tx.ot.workers && (
+                <span className="text-stone-500 truncate">{tx.ot.workers}</span>
               )}
             </div>
           )}
@@ -1282,9 +1504,21 @@ function SummaryView({ transactions, onShowImage }) {
           </div>
         )}
 
+        {todayMedia.installerCount > 0 && (
+          <div className="mt-3">
+            <TeamBreakdownCard ms={todayMedia} kind="installer" />
+          </div>
+        )}
+
         {todayMedia.mediaCount > 0 && (
           <div className="mt-3">
-            <MediaSummaryCard ms={todayMedia} />
+            <TeamBreakdownCard ms={todayMedia} kind="media" />
+          </div>
+        )}
+
+        {todayMedia.otCount > 0 && (
+          <div className="mt-3">
+            <OTSummaryCard ms={todayMedia} />
           </div>
         )}
 
@@ -1337,25 +1571,31 @@ function SummaryView({ transactions, onShowImage }) {
           </div>
         </div>
 
-        {(rangeMedia.mediaCount > 0 || rangeMedia.installerCount > 0) && (
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
-              <p className="text-[11px] text-purple-700 font-medium">🎥 ทีมมีเดีย</p>
-              <p className="text-base font-bold text-purple-900 mt-0.5">฿{fmt(rangeMedia.mediaTotal)}</p>
-              <p className="text-[10px] text-purple-600 mt-0.5">{fmtInt(rangeMedia.mediaCount)} รายการ</p>
-            </div>
+        {(rangeMedia.mediaCount > 0 || rangeMedia.installerCount > 0 || rangeMedia.otCount > 0) && (
+          <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
               <p className="text-[11px] text-orange-700 font-medium">🔧 ช่างติดตั้ง</p>
               <p className="text-base font-bold text-orange-900 mt-0.5">฿{fmt(rangeMedia.installerTotal)}</p>
               <p className="text-[10px] text-orange-600 mt-0.5">{fmtInt(rangeMedia.installerCount)} รายการ</p>
             </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+              <p className="text-[11px] text-purple-700 font-medium">🎥 ทีมมีเดีย</p>
+              <p className="text-base font-bold text-purple-900 mt-0.5">฿{fmt(rangeMedia.mediaTotal)}</p>
+              <p className="text-[10px] text-purple-600 mt-0.5">{fmtInt(rangeMedia.mediaCount)} รายการ</p>
+            </div>
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+              <p className="text-[11px] text-rose-700 font-medium">⏰ OT</p>
+              <p className="text-base font-bold text-rose-900 mt-0.5">฿{fmt(rangeMedia.otTotal)}</p>
+              <p className="text-[10px] text-rose-600 mt-0.5">{fmtInt(rangeMedia.otCount)} รายการ</p>
+            </div>
           </div>
         )}
 
+        {rangeMedia.installerCount > 0 && (
+          <div className="mb-3"><TeamBreakdownCard ms={rangeMedia} kind="installer" /></div>
+        )}
         {rangeMedia.mediaCount > 0 && (
-          <div className="mb-4">
-            <MediaSummaryCard ms={rangeMedia} />
-          </div>
+          <div className="mb-4"><TeamBreakdownCard ms={rangeMedia} kind="media" /></div>
         )}
 
         {byCategory.length > 0 ? (
@@ -1405,39 +1645,78 @@ function StatCard({ label, value, icon, color }) {
   );
 }
 
-function MediaSummaryCard({ ms }) {
-  if (ms.mediaCount === 0) return null;
+// แสดงสรุปทีม (installer หรือ media) — รับ kind = 'installer' | 'media'
+function TeamBreakdownCard({ ms, kind }) {
+  const isInstaller = kind === 'installer';
+  const total = isInstaller ? ms.installerTotal : ms.mediaTotal;
+  const count = isInstaller ? ms.installerCount : ms.mediaCount;
+  const sub = isInstaller ? ms.installerSub : ms.mediaSub;
+  const distance = isInstaller ? ms.installerDistance : ms.mediaDistance;
+  if (count === 0) return null;
+
+  const cls = isInstaller
+    ? { bg: "bg-orange-50 border-orange-200", title: "text-orange-900",
+        sub: "text-orange-700", value: "text-orange-900", border: "border-orange-200" }
+    : { bg: "bg-purple-50 border-purple-200", title: "text-purple-900",
+        sub: "text-purple-700", value: "text-purple-900", border: "border-purple-200" };
+
   return (
-    <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+    <div className={`${cls.bg} border rounded-xl p-4`}>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-[12px] font-semibold text-purple-900 flex items-center gap-1">
-          🎥 ทีมมีเดีย
+        <p className={`text-[12px] font-semibold flex items-center gap-1 ${cls.title}`}>
+          {isInstaller ? "🔧 ช่างติดตั้ง" : "🎥 ทีมมีเดีย"}
         </p>
-        <p className="text-[10.5px] text-purple-700">{fmtInt(ms.mediaCount)} รายการ</p>
+        <p className={`text-[10.5px] ${cls.sub}`}>{fmtInt(count)} รายการ</p>
       </div>
-      <p className="text-2xl font-bold text-purple-900">฿{fmt(ms.mediaTotal)}</p>
-      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-purple-200 text-[11.5px]">
+      <p className={`text-2xl font-bold ${cls.value}`}>฿{fmt(total)}</p>
+      <div className={`grid grid-cols-4 gap-2 mt-3 pt-3 border-t ${cls.border} text-[11.5px]`}>
         <div>
-          <p className="text-purple-700">ค่าน้ำมัน</p>
-          <p className="font-semibold text-purple-900">฿{fmt(ms.sub.fuel)}</p>
+          <p className={cls.sub}>ค่าน้ำมัน</p>
+          <p className={`font-semibold ${cls.value}`}>฿{fmt(sub.fuel)}</p>
         </div>
         <div>
-          <p className="text-purple-700">ค่าทางด่วน</p>
-          <p className="font-semibold text-purple-900">฿{fmt(ms.sub.toll)}</p>
+          <p className={cls.sub}>ค่าทางด่วน</p>
+          <p className={`font-semibold ${cls.value}`}>฿{fmt(sub.toll)}</p>
         </div>
+        {isInstaller && (
+          <div>
+            <p className={cls.sub}>ค่าข้าว</p>
+            <p className={`font-semibold ${cls.value}`}>฿{fmt(sub.food)}</p>
+          </div>
+        )}
         <div>
-          <p className="text-purple-700">ค่าอื่น ๆ</p>
-          <p className="font-semibold text-purple-900">฿{fmt(ms.sub.other)}</p>
+          <p className={cls.sub}>{isInstaller ? "อื่น ๆ" : "อื่น ๆ"}</p>
+          <p className={`font-semibold ${cls.value}`}>฿{fmt(sub.other)}</p>
         </div>
       </div>
-      {ms.totalDistance > 0 && (
-        <p className="text-[11px] text-purple-700 mt-2 font-medium">
-          ระยะทางรวม {ms.totalDistance.toFixed(1)} กม.
+      {distance > 0 && (
+        <p className={`text-[11px] mt-2 font-medium ${cls.sub}`}>
+          ระยะทางรวม {distance.toFixed(1)} กม.
         </p>
       )}
     </div>
   );
 }
+
+function OTSummaryCard({ ms }) {
+  if (ms.otCount === 0) return null;
+  return (
+    <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[12px] font-semibold text-rose-900 flex items-center gap-1">
+          ⏰ OT
+        </p>
+        <p className="text-[10.5px] text-rose-700">
+          {fmtInt(ms.otCount)} รายการ · รวม {fmtInt(ms.otTotalPeople)} คน
+        </p>
+      </div>
+      <p className="text-2xl font-bold text-rose-900">฿{fmt(ms.otTotal)}</p>
+    </div>
+  );
+}
+
+// alias เก่าเพื่อ backward compat
+function MediaSummaryCard({ ms }) { return <TeamBreakdownCard ms={ms} kind="media" />; }
 
 // ─── หน้า "สรุปส่งพี่ X" — สำหรับพี่ญสร้างรูปส่ง ───────────────────
 function SendToPartnerView({ transactions, onShowImage, onViewAtts }) {
@@ -1584,22 +1863,29 @@ function SendToPartnerView({ transactions, onShowImage, onViewAtts }) {
         </div>
       </div>
 
-      {(mediaSummary.mediaCount > 0 || mediaSummary.installerCount > 0) && (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
-            <p className="text-[11px] text-purple-700 font-medium">🎥 ทีมมีเดีย</p>
-            <p className="text-base font-bold text-purple-900 mt-0.5">฿{fmt(mediaSummary.mediaTotal)}</p>
-            <p className="text-[10px] text-purple-600 mt-0.5">{fmtInt(mediaSummary.mediaCount)} รายการ</p>
-          </div>
+      {(mediaSummary.mediaCount > 0 || mediaSummary.installerCount > 0 || mediaSummary.otCount > 0) && (
+        <div className="grid grid-cols-3 gap-2">
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
             <p className="text-[11px] text-orange-700 font-medium">🔧 ช่างติดตั้ง</p>
             <p className="text-base font-bold text-orange-900 mt-0.5">฿{fmt(mediaSummary.installerTotal)}</p>
             <p className="text-[10px] text-orange-600 mt-0.5">{fmtInt(mediaSummary.installerCount)} รายการ</p>
           </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+            <p className="text-[11px] text-purple-700 font-medium">🎥 ทีมมีเดีย</p>
+            <p className="text-base font-bold text-purple-900 mt-0.5">฿{fmt(mediaSummary.mediaTotal)}</p>
+            <p className="text-[10px] text-purple-600 mt-0.5">{fmtInt(mediaSummary.mediaCount)} รายการ</p>
+          </div>
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+            <p className="text-[11px] text-rose-700 font-medium">⏰ OT</p>
+            <p className="text-base font-bold text-rose-900 mt-0.5">฿{fmt(mediaSummary.otTotal)}</p>
+            <p className="text-[10px] text-rose-600 mt-0.5">{fmtInt(mediaSummary.otCount)} รายการ</p>
+          </div>
         </div>
       )}
 
-      {mediaSummary.mediaCount > 0 && <MediaSummaryCard ms={mediaSummary} />}
+      {mediaSummary.installerCount > 0 && <TeamBreakdownCard ms={mediaSummary} kind="installer" />}
+      {mediaSummary.mediaCount > 0 && <TeamBreakdownCard ms={mediaSummary} kind="media" />}
+      {mediaSummary.otCount > 0 && <OTSummaryCard ms={mediaSummary} /> }
 
       <button
         onClick={handleGenerateImage}
@@ -1671,9 +1957,13 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
   if (transfer > 0) breakdownLines.push(['โอน/สแกน', transfer, false]);
   if (summary.xTotal > 0) breakdownLines.push(['พี่ X โอนเอง', summary.xTotal, true]);
 
-  // สรุปทีมมีเดีย vs ช่างติดตั้ง
+  // สรุปทีมมีเดีย / ช่างติดตั้ง / OT
   const mediaSum = computeMediaSummary(summary.yItems);
-  const showTeamSplit = mediaSum.mediaCount > 0;
+  const teamCardCount =
+    (mediaSum.installerCount > 0 ? 1 : 0) +
+    (mediaSum.mediaCount > 0 ? 1 : 0) +
+    (mediaSum.otCount > 0 ? 1 : 0);
+  const showTeamSplit = teamCardCount > 0;
 
   const ITEM_H = 64;
   const SHIFT_HEAD_H = 50;
@@ -1693,8 +1983,9 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
     if (groups.X.length > 0) itemsH += SHIFT_HEAD_H + groups.X.length * ITEM_H + SUBTOTAL_H + X_NOTE_H + SECTION_GAP;
   }
 
-  // กล่อง "สรุปทีมมีเดีย vs ช่างติดตั้ง" — สูงประมาณ 220px ถ้ามี
-  const teamSplitH = showTeamSplit ? 240 : 0;
+  // กล่อง "สรุปตามทีม" — สูงตามจำนวนการ์ด (3 การ์ด stacked)
+  const teamCardH = 110;
+  const teamSplitH = showTeamSplit ? (90 + teamCardCount * teamCardH + 50) : 0;
   const breakdownH = breakdownLines.length > 0 ? 30 + 40 + 40 + breakdownLines.length * 42 + 20 : 0;
   const noteH = summary.xTotal > 0 ? 60 : 20;
   const footerH = 300;
@@ -1763,8 +2054,10 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
         ctx.font = `500 22px ${FONT}`;
         ctx.fillText('•', padding + 16, y + 28);
 
-        // Description (with media prefix if applicable)
+        // Description
         const isMediaItem = t.category === MEDIA_CATEGORY;
+        const isInstallerItem = t.category === INSTALLER_CATEGORY;
+        const isOTItem = t.category === OT_CATEGORY;
         ctx.fillStyle = isX ? '#78716c' : '#292524';
         ctx.font = `500 22px ${FONT}`;
         let desc = t.description;
@@ -1777,15 +2070,27 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
         }
         ctx.fillText(desc, padding + 38, y + 24);
 
-        // Category line — มี prefix [มีเดีย: ทีม] ถ้าเป็นทีมมีเดีย
+        // Category line — มี prefix ตามหมวด
         ctx.fillStyle = '#a8a29e';
         ctx.font = `400 16px ${FONT}`;
         let catLine = t.category;
+        const txTeam = t.team || t.mediaTeam || '';
+        const txSubType = t.subType || t.mediaSubType || '';
         if (isMediaItem) {
-          const teamLabel = t.mediaTeam ? `🎥 ทีมมีเดีย · ${t.mediaTeam}` : '🎥 ทีมมีเดีย';
-          const subTypeLabel = t.mediaSubType ? ` · ${t.mediaSubType}` : '';
-          catLine = `${teamLabel}${subTypeLabel}`;
+          const teamLabel = txTeam ? `🎥 ทีมมีเดีย · ${txTeam}` : '🎥 ทีมมีเดีย';
+          catLine = `${teamLabel}${txSubType ? ` · ${txSubType}` : ''}`;
           ctx.fillStyle = '#7c3aed';
+          ctx.font = `600 16px ${FONT}`;
+        } else if (isInstallerItem) {
+          const teamLabel = txTeam ? `🔧 ช่างติดตั้ง · ${txTeam}` : '🔧 ช่างติดตั้ง';
+          catLine = `${teamLabel}${txSubType ? ` · ${txSubType}` : ''}`;
+          ctx.fillStyle = '#ea580c';
+          ctx.font = `600 16px ${FONT}`;
+        } else if (isOTItem) {
+          const otCount = t.ot && t.ot.count ? t.ot.count : 0;
+          const otRate = t.ot && t.ot.rate ? t.ot.rate : 0;
+          catLine = `⏰ OT · ${otCount} คน × ฿${otRate}`;
+          ctx.fillStyle = '#e11d48';
           ctx.font = `600 16px ${FONT}`;
         }
         ctx.fillText(catLine, padding + 38, y + 48);
@@ -1845,7 +2150,7 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
     drawShift(groups.X, '#a8a29e', 'รายการพี่ X โอนเอง', 'รวมพี่ X โอนเอง', true);
   }
 
-  // ═══ TEAM SPLIT (ทีมมีเดีย vs ช่างติดตั้ง) ═══
+  // ═══ TEAM SPLIT (ช่างติดตั้ง / ทีมมีเดีย / OT) ═══
   if (showTeamSplit) {
     y += 20;
 
@@ -1863,59 +2168,73 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
     ctx.fillText('สรุปตามทีม', padding, y);
     y += 30;
 
-    // 2 กล่อง side-by-side: ทีมมีเดีย / ช่างติดตั้ง
-    const boxW = (W - padding * 2 - 16) / 2;
+    const boxFullW = W - padding * 2;
 
-    // กล่องทีมมีเดีย
-    ctx.fillStyle = '#faf5ff';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(padding, y, boxW, 90, 12);
-    else ctx.rect(padding, y, boxW, 90);
-    ctx.fill();
-    ctx.fillStyle = '#a855f7';
-    ctx.fillRect(padding, y, 5, 90);
+    // กล่องสรุปทีม — stack 3 การ์ด ครอบทั้งความกว้าง
+    const drawTeamCard = (bgColor, accentColor, titleColor, valueColor, label, total, count, detailLine) => {
+      ctx.fillStyle = bgColor;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(padding, y, boxFullW, 90, 12);
+      else ctx.rect(padding, y, boxFullW, 90);
+      ctx.fill();
 
-    ctx.fillStyle = '#6b21a8';
-    ctx.font = `600 22px ${FONT}`;
-    ctx.fillText('🎥 ทีมมีเดีย', padding + 18, y + 32);
-    ctx.font = `700 30px ${FONT}`;
-    ctx.fillText(`฿${fmt(mediaSum.mediaTotal)}`, padding + 18, y + 70);
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(padding, y, 5, 90);
 
-    // กล่องช่างติดตั้ง
-    ctx.fillStyle = '#fff7ed';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(padding + boxW + 16, y, boxW, 90, 12);
-    else ctx.rect(padding + boxW + 16, y, boxW, 90);
-    ctx.fill();
-    ctx.fillStyle = '#f97316';
-    ctx.fillRect(padding + boxW + 16, y, 5, 90);
+      ctx.fillStyle = titleColor;
+      ctx.font = `600 22px ${FONT}`;
+      ctx.fillText(label, padding + 22, y + 35);
 
-    ctx.fillStyle = '#9a3412';
-    ctx.font = `600 22px ${FONT}`;
-    ctx.fillText('🔧 ช่างติดตั้ง', padding + boxW + 34, y + 32);
-    ctx.font = `700 30px ${FONT}`;
-    ctx.fillText(`฿${fmt(mediaSum.installerTotal)}`, padding + boxW + 34, y + 70);
+      ctx.fillStyle = '#a8a29e';
+      ctx.font = `400 16px ${FONT}`;
+      ctx.fillText(`${count} รายการ`, padding + 22, y + 60);
 
-    y += 100;
+      // Total ขวา
+      ctx.fillStyle = valueColor;
+      ctx.font = `700 32px ${FONT}`;
+      const tText = `฿${fmt(total)}`;
+      const tW = ctx.measureText(tText).width;
+      ctx.fillText(tText, W - padding - 22 - tW, y + 50);
 
-    // รายละเอียดย่อยทีมมีเดีย
-    ctx.fillStyle = '#7c3aed';
-    ctx.font = `500 18px ${FONT}`;
-    let detailParts = [];
-    if (mediaSum.sub.fuel > 0) detailParts.push(`ค่าน้ำมัน ฿${fmt(mediaSum.sub.fuel)}`);
-    if (mediaSum.sub.toll > 0) detailParts.push(`ค่าทางด่วน ฿${fmt(mediaSum.sub.toll)}`);
-    if (mediaSum.sub.other > 0) detailParts.push(`ค่าอื่น ๆ ฿${fmt(mediaSum.sub.other)}`);
-    if (detailParts.length > 0) {
-      ctx.fillText(`มีเดีย: ${detailParts.join(' · ')}`, padding, y + 18);
-      y += 28;
+      y += 100;
+
+      if (detailLine) {
+        ctx.fillStyle = accentColor;
+        ctx.font = `500 16px ${FONT}`;
+        ctx.fillText(detailLine, padding + 8, y + 14);
+        y += 22;
+      }
+    };
+
+    if (mediaSum.installerCount > 0) {
+      const parts = [];
+      if (mediaSum.installerSub.fuel > 0) parts.push(`น้ำมัน ฿${fmt(mediaSum.installerSub.fuel)}`);
+      if (mediaSum.installerSub.toll > 0) parts.push(`ด่วน ฿${fmt(mediaSum.installerSub.toll)}`);
+      if (mediaSum.installerSub.food > 0) parts.push(`ข้าว ฿${fmt(mediaSum.installerSub.food)}`);
+      if (mediaSum.installerSub.other > 0) parts.push(`อื่นๆ ฿${fmt(mediaSum.installerSub.other)}`);
+      const detail = parts.length > 0 ? parts.join(' · ') : '';
+      drawTeamCard('#fff7ed', '#f97316', '#9a3412', '#9a3412',
+        '🔧 ช่างติดตั้ง', mediaSum.installerTotal, mediaSum.installerCount, detail);
     }
-    if (mediaSum.totalDistance > 0) {
-      ctx.fillStyle = '#a855f7';
-      ctx.font = `500 18px ${FONT}`;
-      ctx.fillText(`ระยะทางรวม ${mediaSum.totalDistance.toFixed(1)} กม.`, padding, y + 18);
-      y += 28;
+
+    if (mediaSum.mediaCount > 0) {
+      const parts = [];
+      if (mediaSum.mediaSub.fuel > 0) parts.push(`น้ำมัน ฿${fmt(mediaSum.mediaSub.fuel)}`);
+      if (mediaSum.mediaSub.toll > 0) parts.push(`ด่วน ฿${fmt(mediaSum.mediaSub.toll)}`);
+      if (mediaSum.mediaSub.other > 0) parts.push(`อื่นๆ ฿${fmt(mediaSum.mediaSub.other)}`);
+      if (mediaSum.mediaDistance > 0) parts.push(`${mediaSum.mediaDistance.toFixed(1)} กม.`);
+      const detail = parts.length > 0 ? parts.join(' · ') : '';
+      drawTeamCard('#faf5ff', '#a855f7', '#6b21a8', '#6b21a8',
+        '🎥 ทีมมีเดีย', mediaSum.mediaTotal, mediaSum.mediaCount, detail);
     }
-    y += 10;
+
+    if (mediaSum.otCount > 0) {
+      const detail = mediaSum.otTotalPeople > 0 ? `รวม ${mediaSum.otTotalPeople} คน` : '';
+      drawTeamCard('#fff1f2', '#e11d48', '#9f1239', '#9f1239',
+        '⏰ OT', mediaSum.otTotal, mediaSum.otCount, detail);
+    }
+
+    y += 20;
   }
 
   // ═══ PAYMENT BREAKDOWN (ขนาดรอง) ═══

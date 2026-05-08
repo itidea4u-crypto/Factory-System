@@ -391,8 +391,7 @@ function PettyCashSystem() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
-  const [previewCanvas, setPreviewCanvas] = useState(null);
-  const [previewFilename, setPreviewFilename] = useState("");
+  const [previewItems, setPreviewItems] = useState(null);
   const [viewingAtts, setViewingAtts] = useState(null);
 
   useEffect(() => {
@@ -486,9 +485,9 @@ function PettyCashSystem() {
     showToast("ยกเลิกรายการแล้ว — ข้อมูลเดิมยังเก็บไว้ตรวจสอบได้");
   };
 
-  const showImagePreview = (canvas, filename) => {
-    setPreviewCanvas(canvas);
-    setPreviewFilename(filename);
+  // items: array ของ { canvas, name, label }
+  const showImagePreview = (items) => {
+    setPreviewItems(items);
   };
 
   return (
@@ -546,11 +545,10 @@ function PettyCashSystem() {
         </div>
       )}
 
-      {previewCanvas && (
+      {previewItems && (
         <ImagePreviewModal
-          canvas={previewCanvas}
-          filename={previewFilename}
-          onClose={() => setPreviewCanvas(null)}
+          items={previewItems}
+          onClose={() => setPreviewItems(null)}
         />
       )}
 
@@ -1432,11 +1430,11 @@ function TransactionCard({ tx, onCancel, onViewAtts, readOnly = false }) {
   );
 }
 
-// ─── หน้าสรุป — 2 ระดับ ──────────────────────────────────────────
-//   ระดับหลัก:    ยอดสุทธิตัวใหญ่ + เช้า/เย็น/พี่X + จำนวนรายการ + รายการ
-//   ระดับรอง:     สรุปหมวด / วิธีจ่าย / ทีม — เก็บไว้ใน expandable section
+// ─── หน้าสรุป — โหมดเดียว, ปุ่มเดียวสร้างรูป 2 แบบ ─────────────
+//   หน้านี้: พี่ X เปิดดูยอด + พี่ญกดปุ่มเดียวได้รูปสรุปครบ
+//   รูปที่ได้: (1) รูปยอดรวม (2) รูปรายละเอียด (อาจหลายหน้า)
 function SummaryView({ transactions, onShowImage, onViewAtts }) {
-  const [mode, setMode] = useState("day");
+  const [dateMode, setDateMode] = useState("day");
   const [date, setDate] = useState(todayStr());
   const [from, setFrom] = useState(() => {
     const d = new Date();
@@ -1444,12 +1442,12 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [to, setTo] = useState(todayStr());
-  const [showDetails, setShowDetails] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const summary = useMemo(() => {
-    if (mode === "day") return computeSummary(transactions, t => t.date === date);
+    if (dateMode === "day") return computeSummary(transactions, t => t.date === date);
     return computeSummary(transactions, t => t.date >= from && t.date <= to);
-  }, [transactions, mode, date, from, to]);
+  }, [transactions, dateMode, date, from, to]);
 
   const teamSum = useMemo(() => computeTeamSummary(summary.yItems), [summary]);
 
@@ -1478,40 +1476,62 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [summary.yItems]);
 
-  const dateLabel = mode === "day"
+  const dateLabel = dateMode === "day"
     ? formatThaiDate(date)
     : `${formatThaiDate(from)} – ${formatThaiDate(to)}`;
-  const fileLabel = mode === "day" ? date : `${from}_ถึง_${to}`;
+  const fileLabel = dateMode === "day" ? date : `${from}_ถึง_${to}`;
 
-  const handleGenerateImage = async () => {
-    const canvas = await renderSummaryImage(summary, dateLabel, mode === "day" ? "สรุปรายวัน" : "สรุปช่วงวันที่");
-    onShowImage(canvas, `สรุปยอด_${fileLabel}.png`);
+  // กดปุ่มเดียว — สร้างรูปทั้ง 2 แบบเรียงต่อกันใน modal
+  const handleDownloadAll = async () => {
+    setGenerating(true);
+    try {
+      const overviewCanvas = await renderOverviewImage(
+        summary, dateLabel,
+        dateMode === "day" ? "สรุปรายวัน" : "สรุปช่วงวันที่",
+        { breakdown, byCategory }
+      );
+      const allItems = [...morningItems, ...eveningItems, ...xItems];
+      const detailCanvases = allItems.length > 0
+        ? await renderDetailImages(
+            summary, allItems, dateLabel,
+            dateMode === "day" ? "รายละเอียดรายวัน" : "รายละเอียดช่วงวันที่"
+          )
+        : [];
+      const all = [
+        { canvas: overviewCanvas, name: `สรุปยอดรวม_${fileLabel}.png`, label: "ยอดรวม" },
+        ...detailCanvases.map((c, i) => ({
+          canvas: c,
+          name: detailCanvases.length > 1
+            ? `รายละเอียด_${fileLabel}_หน้า${i + 1}.png`
+            : `รายละเอียด_${fileLabel}.png`,
+          label: detailCanvases.length > 1 ? `รายละเอียด ${i + 1}/${detailCanvases.length}` : "รายละเอียด"
+        }))
+      ];
+      onShowImage(all);
+    } finally {
+      setGenerating(false);
+    }
   };
-
-  const hasDetails =
-    breakdown.cash > 0 || breakdown.transfer > 0 ||
-    byCategory.length > 0 ||
-    teamSum.installerCount > 0 || teamSum.mediaCount > 0 || teamSum.otCount > 0;
 
   return (
     <div className="space-y-3">
-      {/* ─── Filter ─── */}
+      {/* ─── Filter วันที่ ─── */}
       <div className="bg-white rounded-2xl border border-stone-200 p-3.5 shadow-sm">
         <div className="grid grid-cols-2 gap-1 bg-stone-100 p-1 rounded-lg mb-3">
-          <button onClick={() => setMode("day")}
+          <button onClick={() => setDateMode("day")}
             className={`py-1.5 rounded-md text-[13px] font-medium transition ${
-              mode === "day" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
+              dateMode === "day" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
             }`}>
             รายวัน
           </button>
-          <button onClick={() => setMode("range")}
+          <button onClick={() => setDateMode("range")}
             className={`py-1.5 rounded-md text-[13px] font-medium transition ${
-              mode === "range" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
+              dateMode === "range" ? "bg-white text-emerald-700 shadow-sm" : "text-stone-600"
             }`}>
             ช่วงวันที่
           </button>
         </div>
-        {mode === "day" ? (
+        {dateMode === "day" ? (
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm" />
         ) : (
@@ -1524,11 +1544,7 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
         )}
       </div>
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* PRIMARY (เห็นทันทีใน 5 วิ)                              */}
-      {/* ═══════════════════════════════════════════════════════ */}
-
-      {/* ยอดเบิกรวมสุทธิ — ตัวใหญ่สุด */}
+      {/* ─── ยอดเบิกรวมสุทธิ — ตัวใหญ่สุด ─── */}
       <div className="bg-gradient-to-br from-emerald-700 to-emerald-800 text-white rounded-2xl p-6 shadow-md">
         <p className="text-[11px] opacity-80 font-medium uppercase tracking-wide">{dateLabel}</p>
         <p className="text-[12px] opacity-90 mt-3">ยอดเบิกรวมสุทธิ</p>
@@ -1539,21 +1555,25 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
         </p>
       </div>
 
-      {/* เช้า / เย็น (สี neutral ไม่แย่งความเด่น) */}
+      {/* ─── เช้า / เย็น ─── */}
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-white border border-stone-200 rounded-xl p-3.5">
-          <p className="text-[11px] text-stone-500 font-medium flex items-center gap-1"><Sun size={12} className="text-amber-600" />เบิกเช้า</p>
+          <p className="text-[11px] text-stone-500 font-medium flex items-center gap-1">
+            <Sun size={12} className="text-amber-600" />รวมรอบเช้า
+          </p>
           <p className="text-xl font-bold text-stone-900 mt-0.5">฿{fmt(summary.morning)}</p>
           <p className="text-[10.5px] text-stone-400 mt-0.5">{fmtInt(morningItems.length)} รายการ</p>
         </div>
         <div className="bg-white border border-stone-200 rounded-xl p-3.5">
-          <p className="text-[11px] text-stone-500 font-medium flex items-center gap-1"><Moon size={12} className="text-indigo-600" />เบิกเย็น</p>
+          <p className="text-[11px] text-stone-500 font-medium flex items-center gap-1">
+            <Moon size={12} className="text-indigo-600" />รวมรอบเย็น
+          </p>
           <p className="text-xl font-bold text-stone-900 mt-0.5">฿{fmt(summary.evening)}</p>
           <p className="text-[10.5px] text-stone-400 mt-0.5">{fmtInt(eveningItems.length)} รายการ</p>
         </div>
       </div>
 
-      {/* พี่ X โอนเอง (เฉพาะถ้ามี) */}
+      {/* ─── พี่ X โอนเอง ─── */}
       {summary.xTotal > 0 && (
         <div className="bg-stone-100 border border-stone-200 rounded-xl px-3.5 py-3 flex items-center justify-between">
           <div>
@@ -1568,16 +1588,72 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
         </div>
       )}
 
-      {/* ปุ่มดาวน์โหลด — รอง (outline ไม่เด่น) */}
+      {/* ─── ปุ่มเดียว ดาวน์โหลดรูปสรุป ─── */}
       <button
-        onClick={handleGenerateImage}
-        disabled={summary.count === 0}
-        className="w-full bg-white hover:bg-stone-50 disabled:bg-stone-100 disabled:cursor-not-allowed disabled:text-stone-400 border border-stone-300 hover:border-stone-400 text-stone-700 py-2.5 rounded-xl font-medium text-[13px] flex items-center justify-center gap-2 transition"
+        onClick={handleDownloadAll}
+        disabled={summary.count === 0 || generating}
+        className="w-full bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 shadow-sm"
       >
-        <Download size={14} />ดาวน์โหลดรูปสรุป
+        <Download size={16} />
+        {generating ? "กำลังสร้างรูป..." : "ดาวน์โหลดรูปสรุป"}
       </button>
+      <p className="text-[10.5px] text-stone-400 text-center -mt-1">
+        ได้ทั้งรูปยอดรวม + รูปรายละเอียดในครั้งเดียว
+        {summary.count > 12 && " (รูปรายละเอียดอาจแบ่งหลายหน้า)"}
+      </p>
 
-      {/* ─── รายการแยกรอบ — ส่วนหลัก ─── */}
+      {/* ─── สรุปวิธีจ่าย ─── */}
+      {(breakdown.cash > 0 || breakdown.transfer > 0) && (
+        <div className="bg-white rounded-xl border border-stone-200 p-4">
+          <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide">สรุปตามวิธีจ่าย</h3>
+          <div className="space-y-1.5 text-[13px]">
+            {breakdown.cash > 0 && (
+              <div className="flex justify-between py-0.5">
+                <span className="text-stone-700">จ่ายเงินสด</span>
+                <span className="font-medium text-stone-900">฿{fmt(breakdown.cash)}</span>
+              </div>
+            )}
+            {breakdown.transfer > 0 && (
+              <div className="flex justify-between py-0.5">
+                <span className="text-stone-700">โอน/สแกน</span>
+                <span className="font-medium text-stone-900">฿{fmt(breakdown.transfer)}</span>
+              </div>
+            )}
+            <div className="flex justify-between py-1.5 mt-1 border-t border-stone-200">
+              <span className="font-semibold text-stone-900">รวมสุทธิ</span>
+              <span className="font-semibold text-emerald-700">฿{fmt(summary.total)}</span>
+            </div>
+            {summary.xTotal > 0 && (
+              <div className="flex justify-between py-0.5 text-[12px] text-stone-500">
+                <span>พี่ X โอนเอง <span className="text-stone-400">(แยก)</span></span>
+                <span>฿{fmt(summary.xTotal)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── สรุปหมวด ─── */}
+      {byCategory.length > 0 && (
+        <div className="bg-white rounded-xl border border-stone-200 p-4">
+          <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide">สรุปตามหมวด</h3>
+          <div className="space-y-1 text-[13px]">
+            {byCategory.map(c => {
+              const pct = summary.total > 0 ? (c.value / summary.total) * 100 : 0;
+              return (
+                <div key={c.name} className="flex justify-between py-0.5">
+                  <span className="text-stone-700">{c.name}</span>
+                  <span className="font-medium text-stone-900">
+                    ฿{fmt(c.value)} <span className="text-stone-400 text-[11.5px]">({pct.toFixed(0)}%)</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── รายการแยกรอบ ─── */}
       {summary.count === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center">
           <Receipt size={36} className="mx-auto text-stone-300 mb-2" />
@@ -1616,171 +1692,6 @@ function SummaryView({ transactions, onShowImage, onViewAtts }) {
               <div className="space-y-2">
                 {xItems.map(t => <TransactionCard key={t.id} tx={t} readOnly onViewAtts={onViewAtts} />)}
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* SECONDARY (พับเก็บ — ขยายเมื่อต้องการ)                  */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      {hasDetails && (
-        <div className="pt-2">
-          <button
-            onClick={() => setShowDetails(s => !s)}
-            className="w-full flex items-center justify-between bg-white border border-stone-200 rounded-xl px-4 py-2.5 text-[13px] text-stone-600 hover:text-stone-900 hover:bg-stone-50 transition"
-          >
-            <span className="font-medium">รายละเอียดเพิ่มเติม</span>
-            <ChevronDown size={15} className={`transition ${showDetails ? "rotate-180" : ""}`} />
-          </button>
-
-          {showDetails && (
-            <div className="mt-3 space-y-3">
-              {/* สรุปวิธีจ่าย */}
-              {(breakdown.cash > 0 || breakdown.transfer > 0) && (
-                <div className="bg-white rounded-xl border border-stone-200 p-4">
-                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide">สรุปตามวิธีจ่าย</h3>
-                  <div className="space-y-1.5 text-[13px]">
-                    {breakdown.cash > 0 && (
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-stone-700">จ่ายเงินสด</span>
-                        <span className="font-medium text-stone-900">฿{fmt(breakdown.cash)}</span>
-                      </div>
-                    )}
-                    {breakdown.transfer > 0 && (
-                      <div className="flex justify-between py-0.5">
-                        <span className="text-stone-700">โอน/สแกน</span>
-                        <span className="font-medium text-stone-900">฿{fmt(breakdown.transfer)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between py-1.5 mt-1 border-t border-stone-200">
-                      <span className="font-semibold text-stone-900">รวมสุทธิ</span>
-                      <span className="font-semibold text-emerald-700">฿{fmt(summary.total)}</span>
-                    </div>
-                    {summary.xTotal > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px] text-stone-500">
-                        <span>พี่ X โอนเอง <span className="text-stone-400">(แยก)</span></span>
-                        <span>฿{fmt(summary.xTotal)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* สรุปหมวด — list แบบ minimal ไม่มี bar chart */}
-              {byCategory.length > 0 && (
-                <div className="bg-white rounded-xl border border-stone-200 p-4">
-                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide">สรุปตามหมวด</h3>
-                  <div className="space-y-1 text-[13px]">
-                    {byCategory.map(c => {
-                      const pct = summary.total > 0 ? (c.value / summary.total) * 100 : 0;
-                      return (
-                        <div key={c.name} className="flex justify-between py-0.5">
-                          <span className="text-stone-700">{c.name}</span>
-                          <span className="font-medium text-stone-900">
-                            ฿{fmt(c.value)} <span className="text-stone-400 text-[11.5px]">({pct.toFixed(0)}%)</span>
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* รายละเอียดทีม — minimal list ไม่มีสีจัด */}
-              {teamSum.installerCount > 0 && (
-                <div className="bg-white rounded-xl border border-stone-200 p-4">
-                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide flex items-center gap-1">
-                    🔧 ช่างติดตั้ง <span className="text-stone-400 font-normal normal-case">— {fmtInt(teamSum.installerCount)} รายการ</span>
-                  </h3>
-                  <div className="space-y-1 text-[13px]">
-                    <div className="flex justify-between py-0.5">
-                      <span className="text-stone-700">รวม</span>
-                      <span className="font-semibold text-stone-900">฿{fmt(teamSum.installerTotal)}</span>
-                    </div>
-                    {teamSum.installerSub.fuel > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px]">
-                        <span className="text-stone-500 pl-3">ค่าน้ำมัน</span>
-                        <span className="text-stone-700">฿{fmt(teamSum.installerSub.fuel)}</span>
-                      </div>
-                    )}
-                    {teamSum.installerSub.toll > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px]">
-                        <span className="text-stone-500 pl-3">ค่าทางด่วน</span>
-                        <span className="text-stone-700">฿{fmt(teamSum.installerSub.toll)}</span>
-                      </div>
-                    )}
-                    {teamSum.installerSub.food > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px]">
-                        <span className="text-stone-500 pl-3">ค่าข้าวออกพื้นที่</span>
-                        <span className="text-stone-700">฿{fmt(teamSum.installerSub.food)}</span>
-                      </div>
-                    )}
-                    {teamSum.installerSub.other > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px]">
-                        <span className="text-stone-500 pl-3">ค่าใช้จ่ายอื่น ๆ</span>
-                        <span className="text-stone-700">฿{fmt(teamSum.installerSub.other)}</span>
-                      </div>
-                    )}
-                    {teamSum.installerDistance > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px] text-stone-400">
-                        <span className="pl-3">ระยะทางรวม</span>
-                        <span>{teamSum.installerDistance.toFixed(1)} กม.</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {teamSum.mediaCount > 0 && (
-                <div className="bg-white rounded-xl border border-stone-200 p-4">
-                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide flex items-center gap-1">
-                    🎥 ทีมมีเดีย <span className="text-stone-400 font-normal normal-case">— {fmtInt(teamSum.mediaCount)} รายการ</span>
-                  </h3>
-                  <div className="space-y-1 text-[13px]">
-                    <div className="flex justify-between py-0.5">
-                      <span className="text-stone-700">รวม</span>
-                      <span className="font-semibold text-stone-900">฿{fmt(teamSum.mediaTotal)}</span>
-                    </div>
-                    {teamSum.mediaSub.fuel > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px]">
-                        <span className="text-stone-500 pl-3">ค่าน้ำมัน</span>
-                        <span className="text-stone-700">฿{fmt(teamSum.mediaSub.fuel)}</span>
-                      </div>
-                    )}
-                    {teamSum.mediaSub.toll > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px]">
-                        <span className="text-stone-500 pl-3">ค่าทางด่วน</span>
-                        <span className="text-stone-700">฿{fmt(teamSum.mediaSub.toll)}</span>
-                      </div>
-                    )}
-                    {teamSum.mediaSub.other > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px]">
-                        <span className="text-stone-500 pl-3">ค่าใช้จ่ายอื่น ๆ</span>
-                        <span className="text-stone-700">฿{fmt(teamSum.mediaSub.other)}</span>
-                      </div>
-                    )}
-                    {teamSum.mediaDistance > 0 && (
-                      <div className="flex justify-between py-0.5 text-[12px] text-stone-400">
-                        <span className="pl-3">ระยะทางรวม</span>
-                        <span>{teamSum.mediaDistance.toFixed(1)} กม.</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {teamSum.otCount > 0 && (
-                <div className="bg-white rounded-xl border border-stone-200 p-4">
-                  <h3 className="text-[11px] font-semibold text-stone-500 mb-2 uppercase tracking-wide flex items-center gap-1">
-                    ⏰ OT <span className="text-stone-400 font-normal normal-case">— {fmtInt(teamSum.otCount)} รายการ · {fmtInt(teamSum.otTotalPeople)} คน</span>
-                  </h3>
-                  <div className="flex justify-between py-0.5 text-[13px]">
-                    <span className="text-stone-700">รวม</span>
-                    <span className="font-semibold text-stone-900">฿{fmt(teamSum.otTotal)}</span>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -1863,99 +1774,86 @@ function OTSummaryCard({ ms }) {
 function MediaSummaryCard({ ms }) { return <TeamBreakdownCard ms={ms} kind="media" />; }
 
 
-// ─── สร้างรูปสรุป (Canvas) ───────────────────────────────────────
-// โครงรูป (top → bottom):
-//   1. หัวข้อ "สรุปยอดเบิกเงิน"
-//   2. วันที่
-//   3. รายการแยกรอบเช้า / รอบเย็น (+ พี่ X แยกท้ายถ้ามี)
-//   4. รวมแต่ละรอบ
-//   5. รายละเอียดการจ่าย (จ่ายเงินสด / โอน/สแกน / พี่ X) - ขนาดรอง
-//   6. หมายเหตุเล็ก ๆ
-//   7. ยอดเบิกรวมสุทธิ - ตัวใหญ่ที่สุด อยู่ล่างสุด
-async function renderSummaryImage(summary, dateLabel, subtitle) {
-  if (document.fonts) {
-    try {
-      await Promise.all([
-        document.fonts.load('700 140px "IBM Plex Sans Thai"'),
-        document.fonts.load('700 48px "IBM Plex Sans Thai"'),
-        document.fonts.load('700 32px "IBM Plex Sans Thai"'),
-        document.fonts.load('700 24px "IBM Plex Sans Thai"'),
-        document.fonts.load('600 30px "IBM Plex Sans Thai"'),
-        document.fonts.load('600 26px "IBM Plex Sans Thai"'),
-        document.fonts.load('500 22px "IBM Plex Sans Thai"'),
-        document.fonts.load('400 18px "IBM Plex Sans Thai"')
-      ]);
-    } catch (e) { /* ignore */ }
-  }
+// ─── Helper: load fonts ก่อนวาด canvas ──────────────────────────
+async function loadCanvasFonts() {
+  if (!document.fonts) return;
+  try {
+    await Promise.all([
+      document.fonts.load('700 140px "IBM Plex Sans Thai"'),
+      document.fonts.load('700 96px "IBM Plex Sans Thai"'),
+      document.fonts.load('700 48px "IBM Plex Sans Thai"'),
+      document.fonts.load('700 36px "IBM Plex Sans Thai"'),
+      document.fonts.load('700 30px "IBM Plex Sans Thai"'),
+      document.fonts.load('700 24px "IBM Plex Sans Thai"'),
+      document.fonts.load('600 30px "IBM Plex Sans Thai"'),
+      document.fonts.load('600 26px "IBM Plex Sans Thai"'),
+      document.fonts.load('600 22px "IBM Plex Sans Thai"'),
+      document.fonts.load('500 22px "IBM Plex Sans Thai"'),
+      document.fonts.load('500 20px "IBM Plex Sans Thai"'),
+      document.fonts.load('400 18px "IBM Plex Sans Thai"'),
+      document.fonts.load('400 16px "IBM Plex Sans Thai"')
+    ]);
+  } catch (e) { /* ignore */ }
+}
 
-  const W = 1080;
-  const padding = 70;
-  const FONT = '"IBM Plex Sans Thai", "Sarabun", system-ui, sans-serif';
+const CANVAS_W = 1080;
+const CANVAS_PAD = 70;
+const CANVAS_FONT = '"IBM Plex Sans Thai", "Sarabun", system-ui, sans-serif';
 
-  const groups = { 'เช้า': [], 'เย็น': [], 'X': [] };
-  summary.items.forEach(t => {
-    if (t.paymentMethod === X_PAYMENT) groups.X.push(t);
-    else groups[t.shift].push(t);
-  });
-  ['เช้า', 'เย็น', 'X'].forEach(k => groups[k].sort((a, b) => a.createdAt - b.createdAt));
-
-  // breakdown 2 ตัวเลือก + พี่ X
-  let cash = 0, transfer = 0;
-  summary.yItems.forEach(t => {
-    if (t.paymentMethod === 'จ่ายเงินสด') cash += t.amount;
-    else if (t.paymentMethod === 'โอน/สแกน') transfer += t.amount;
-  });
-  const breakdownLines = [];
-  if (cash > 0) breakdownLines.push(['จ่ายเงินสด', cash, false]);
-  if (transfer > 0) breakdownLines.push(['โอน/สแกน', transfer, false]);
-  if (summary.xTotal > 0) breakdownLines.push(['พี่ X โอนเอง', summary.xTotal, true]);
-
-  // สรุปทีมมีเดีย / ช่างติดตั้ง / OT
-  const mediaSum = computeMediaSummary(summary.yItems);
-  const teamCardCount =
-    (mediaSum.installerCount > 0 ? 1 : 0) +
-    (mediaSum.mediaCount > 0 ? 1 : 0) +
-    (mediaSum.otCount > 0 ? 1 : 0);
-  const showTeamSplit = teamCardCount > 0;
-
-  const ITEM_H = 64;
-  const SHIFT_HEAD_H = 50;
-  const SUBTOTAL_H = 80;
-  const X_NOTE_H = 30;
-  const SECTION_GAP = 30;
-
-  const headerH = 265;
-
-  let itemsH;
-  if (summary.count === 0) {
-    itemsH = 200;
+// helper: round rect (fallback ถ้า browser เก่า)
+function roundRect(ctx, x, y, w, h, r) {
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
   } else {
-    itemsH = 20;
-    if (groups['เช้า'].length > 0) itemsH += SHIFT_HEAD_H + groups['เช้า'].length * ITEM_H + SUBTOTAL_H + SECTION_GAP;
-    if (groups['เย็น'].length > 0) itemsH += SHIFT_HEAD_H + groups['เย็น'].length * ITEM_H + SUBTOTAL_H + SECTION_GAP;
-    if (groups.X.length > 0) itemsH += SHIFT_HEAD_H + groups.X.length * ITEM_H + SUBTOTAL_H + X_NOTE_H + SECTION_GAP;
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
   }
+}
 
-  // กล่อง "สรุปตามทีม" — สูงตามจำนวนการ์ด (3 การ์ด stacked)
-  const teamCardH = 110;
-  const teamSplitH = showTeamSplit ? (90 + teamCardCount * teamCardH + 50) : 0;
-  const breakdownH = breakdownLines.length > 0 ? 30 + 40 + 40 + breakdownLines.length * 42 + 20 : 0;
-  const noteH = summary.xTotal > 0 ? 60 : 20;
-  const footerH = 300;
+// ─── (1) renderOverviewImage — รูปยอดรวมสำหรับให้พี่ X เห็นยอดเร็ว ───
+//   Layout (top → bottom):
+//     1. หัวข้อ "สรุปยอดเบิกเงิน" + วันที่
+//     2. ยอดเบิกรวมสุทธิ (ตัวใหญ่ที่สุด)
+//     3. รวมรอบเช้า / รวมรอบเย็น / พี่ X (ถ้ามี)
+//     4. สรุปตามวิธีจ่าย
+//     5. สรุปตามหมวด
+//     6. footer: จำนวนรายการ
+async function renderOverviewImage(summary, dateLabel, subtitle, extra) {
+  await loadCanvasFonts();
 
-  const H = headerH + itemsH + teamSplitH + breakdownH + noteH + footerH;
+  const W = CANVAS_W;
+  const padding = CANVAS_PAD;
+  const FONT = CANVAS_FONT;
+
+  // เตรียมข้อมูล
+  const breakdown = (extra && extra.breakdown) || { cash: 0, transfer: 0 };
+  const byCategory = (extra && extra.byCategory) || [];
+
+  // คำนวณความสูง
+  const headerH = 250;
+  const totalH = 280;
+  const shiftH = 130;
+  const xH = summary.xTotal > 0 ? 100 : 0;
+  const paymentLines = (breakdown.cash > 0 ? 1 : 0) + (breakdown.transfer > 0 ? 1 : 0);
+  const paymentH = paymentLines > 0 ? (90 + paymentLines * 38 + 50) : 0;
+  const categoryH = byCategory.length > 0 ? (90 + byCategory.length * 38 + 30) : 0;
+  const footerH = 100;
+
+  const H = headerH + totalH + shiftH + xH + paymentH + categoryH + footerH;
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d');
 
+  // BG
   ctx.fillStyle = '#FAFAF9';
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#047857';
   ctx.fillRect(0, 0, W, 8);
 
-  // ═══ HEADER + DATE ═══
+  // ═══ HEADER ═══
   let y = 90;
   ctx.fillStyle = '#0c4a3e';
   ctx.font = `700 48px ${FONT}`;
@@ -1970,50 +1868,375 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
   ctx.fillStyle = '#1c1917';
   ctx.font = `600 30px ${FONT}`;
   ctx.fillText(dateLabel, padding, y);
-  y += 30;
+  y += 50;
 
-  ctx.strokeStyle = '#e7e5e4';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(padding, y + 20);
-  ctx.lineTo(W - padding, y + 20);
-  ctx.stroke();
-  y += 60;
+  // ═══ ยอดเบิกรวมสุทธิ — ตัวใหญ่สุด ═══
+  // กล่องเขียวเข้ม
+  ctx.fillStyle = '#064e3b';
+  roundRect(ctx, padding, y, W - padding * 2, 240, 18);
+  ctx.fill();
 
-  // ═══ ITEMS BY SHIFT + SUBTOTALS ═══
-  if (summary.count === 0) {
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(padding, y, W - padding * 2, 5);
+
+  ctx.fillStyle = '#a7f3d0';
+  ctx.font = `500 26px ${FONT}`;
+  ctx.fillText('ยอดเบิกรวมสุทธิ', padding + 30, y + 60);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `700 110px ${FONT}`;
+  ctx.fillText(`฿${fmt(summary.total)}`, padding + 30, y + 175);
+
+  ctx.fillStyle = '#6ee7b7';
+  ctx.font = `400 18px ${FONT}`;
+  ctx.fillText(
+    `${fmtInt(summary.yCount)} รายการ${summary.xCount > 0 ? ' · ไม่รวมพี่ X จ่ายเอง' : ''}`,
+    padding + 30, y + 215
+  );
+  y += 280;
+
+  // ═══ เช้า / เย็น 2 คอลัมน์ ═══
+  const colW = (W - padding * 2 - 16) / 2;
+  const drawShiftCol = (x, label, value, count, accentBg, accentColor) => {
+    ctx.fillStyle = accentBg;
+    roundRect(ctx, x, y, colW, 110, 14);
+    ctx.fill();
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(x, y, 5, 110);
+
+    ctx.fillStyle = '#57534e';
+    ctx.font = `500 22px ${FONT}`;
+    ctx.fillText(label, x + 22, y + 38);
+
+    ctx.fillStyle = '#1c1917';
+    ctx.font = `700 36px ${FONT}`;
+    ctx.fillText(`฿${fmt(value)}`, x + 22, y + 80);
+
     ctx.fillStyle = '#a8a29e';
-    ctx.font = `500 26px ${FONT}`;
-    const txt = 'ไม่มีรายการในวันที่นี้';
-    const tw = ctx.measureText(txt).width;
-    ctx.fillText(txt, (W - tw) / 2, y + 90);
-    y += 200;
-  } else {
-    y += 20;
+    ctx.font = `400 16px ${FONT}`;
+    ctx.fillText(`${count} รายการ`, x + 22, y + 100);
+  };
 
-    const drawShift = (items, accentColor, label, subtotalLabel, isX = false) => {
-      if (items.length === 0) return;
+  const morningCount = summary.yItems.filter(t => t.shift === 'เช้า').length;
+  const eveningCount = summary.yItems.filter(t => t.shift === 'เย็น').length;
+  drawShiftCol(padding, '☀ รวมรอบเช้า', summary.morning, morningCount, '#fef3c7', '#f59e0b');
+  drawShiftCol(padding + colW + 16, '☾ รวมรอบเย็น', summary.evening, eveningCount, '#e0e7ff', '#6366f1');
+  y += shiftH;
 
-      ctx.fillStyle = accentColor;
-      ctx.fillRect(padding, y, 5, 32);
+  // ═══ พี่ X โอนเอง ═══
+  if (summary.xTotal > 0) {
+    ctx.fillStyle = '#f5f5f4';
+    roundRect(ctx, padding, y, W - padding * 2, 80, 14);
+    ctx.fill();
+    ctx.fillStyle = '#a8a29e';
+    ctx.fillRect(padding, y, 5, 80);
+
+    ctx.fillStyle = '#57534e';
+    ctx.font = `500 22px ${FONT}`;
+    ctx.fillText('พี่ X โอนเอง', padding + 22, y + 35);
+
+    ctx.fillStyle = '#a8a29e';
+    ctx.font = `400 16px ${FONT}`;
+    ctx.fillText(`${fmtInt(summary.xCount)} รายการ · ไม่รวมในยอดเบิกสุทธิ`, padding + 22, y + 58);
+
+    ctx.fillStyle = '#1c1917';
+    ctx.font = `700 30px ${FONT}`;
+    const xText = `฿${fmt(summary.xTotal)}`;
+    const xW = ctx.measureText(xText).width;
+    ctx.fillText(xText, W - padding - 22 - xW, y + 50);
+
+    y += 100;
+  }
+
+  // ═══ สรุปตามวิธีจ่าย ═══
+  if (paymentLines > 0) {
+    y += 30;
+    ctx.strokeStyle = '#e7e5e4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(W - padding, y);
+    ctx.stroke();
+    y += 30;
+
+    ctx.fillStyle = '#1c1917';
+    ctx.font = `700 24px ${FONT}`;
+    ctx.fillText('สรุปตามวิธีจ่าย', padding, y);
+    y += 38;
+
+    if (breakdown.cash > 0) {
+      ctx.fillStyle = '#57534e';
+      ctx.font = `500 22px ${FONT}`;
+      ctx.fillText('จ่ายเงินสด', padding + 8, y);
 
       ctx.fillStyle = '#1c1917';
-      ctx.font = `600 26px ${FONT}`;
-      ctx.fillText(label, padding + 18, y + 25);
-      y += SHIFT_HEAD_H;
+      ctx.font = `600 22px ${FONT}`;
+      const t = `฿${fmt(breakdown.cash)}`;
+      const tW = ctx.measureText(t).width;
+      ctx.fillText(t, W - padding - tW, y);
+      y += 38;
+    }
+    if (breakdown.transfer > 0) {
+      ctx.fillStyle = '#57534e';
+      ctx.font = `500 22px ${FONT}`;
+      ctx.fillText('โอน/สแกน', padding + 8, y);
 
-      items.forEach(t => {
+      ctx.fillStyle = '#1c1917';
+      ctx.font = `600 22px ${FONT}`;
+      const t = `฿${fmt(breakdown.transfer)}`;
+      const tW = ctx.measureText(t).width;
+      ctx.fillText(t, W - padding - tW, y);
+      y += 38;
+    }
+  }
+
+  // ═══ สรุปตามหมวด ═══
+  if (byCategory.length > 0) {
+    y += 20;
+    ctx.strokeStyle = '#e7e5e4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(W - padding, y);
+    ctx.stroke();
+    y += 30;
+
+    ctx.fillStyle = '#1c1917';
+    ctx.font = `700 24px ${FONT}`;
+    ctx.fillText('สรุปตามหมวด', padding, y);
+    y += 38;
+
+    byCategory.forEach(c => {
+      const pct = summary.total > 0 ? (c.value / summary.total) * 100 : 0;
+      ctx.fillStyle = '#57534e';
+      ctx.font = `500 20px ${FONT}`;
+      ctx.fillText(c.name, padding + 8, y);
+
+      ctx.fillStyle = '#1c1917';
+      ctx.font = `600 20px ${FONT}`;
+      const valText = `฿${fmt(c.value)}`;
+      const pctText = ` (${pct.toFixed(0)}%)`;
+      const valW = ctx.measureText(valText).width;
+      ctx.fillStyle = '#a8a29e';
+      ctx.font = `400 18px ${FONT}`;
+      const pctW = ctx.measureText(pctText).width;
+      ctx.fillText(pctText, W - padding - pctW, y);
+
+      ctx.fillStyle = '#1c1917';
+      ctx.font = `600 20px ${FONT}`;
+      ctx.fillText(valText, W - padding - pctW - valW, y);
+      y += 38;
+    });
+  }
+
+  // ═══ FOOTER: จำนวนรายการ ═══
+  y = H - 60;
+  ctx.fillStyle = '#a8a29e';
+  ctx.font = `400 18px ${FONT}`;
+  ctx.fillText(`รวมทั้งหมด ${fmtInt(summary.count)} รายการ`, padding, y);
+
+  return canvas;
+}
+
+// ─── (2) renderDetailImages — รูปรายละเอียด แบ่งหน้าอัตโนมัติ ───
+//   ส่ง array ของ canvases (1 หรือ มากกว่า)
+//   แต่ละหน้าแสดง "รายละเอียดรายการเบิกเงิน — หน้า X/Y"
+async function renderDetailImages(summary, allItems, dateLabel, subtitle) {
+  if (allItems.length === 0) return [];
+
+  await loadCanvasFonts();
+
+  const W = CANVAS_W;
+  const padding = CANVAS_PAD;
+  const FONT = CANVAS_FONT;
+
+  // คำนวณความสูงต่อ item
+  // — ปกติ ~92px (3 บรรทัด: chip+desc, breakdown, footer)
+  // — ถ้ามี mileage breakdown หรือ OT detail เพิ่ม +28px
+  const itemHeight = (t) => {
+    let h = 90;
+    const isMedia = t.category === MEDIA_CATEGORY;
+    const isInstaller = t.category === INSTALLER_CATEGORY;
+    const isOT = t.category === OT_CATEGORY;
+    if ((isMedia || isInstaller) && t.mileage) h += 28;
+    if (isOT && t.ot) h += 28;
+    if (t.note && t.note.length > 0) h += 24;
+    return h;
+  };
+
+  // จัดกลุ่มตามรอบ
+  const morning = allItems.filter(t => t.shift === 'เช้า' && t.paymentMethod !== X_PAYMENT);
+  const evening = allItems.filter(t => t.shift === 'เย็น' && t.paymentMethod !== X_PAYMENT);
+  const xList = allItems.filter(t => t.paymentMethod === X_PAYMENT);
+
+  // สร้างลำดับเรนเดอร์: [{type:'header', label}, {type:'item', t}, ...]
+  const seq = [];
+  if (morning.length > 0) {
+    seq.push({ type: 'header', label: '☀ รอบเช้า', count: morning.length, color: '#f59e0b' });
+    morning.forEach(t => seq.push({ type: 'item', t, group: 'morning' }));
+  }
+  if (evening.length > 0) {
+    seq.push({ type: 'header', label: '☾ รอบเย็น', count: evening.length, color: '#6366f1' });
+    evening.forEach(t => seq.push({ type: 'item', t, group: 'evening' }));
+  }
+  if (xList.length > 0) {
+    seq.push({ type: 'header', label: 'พี่ X โอนเอง', count: xList.length, color: '#a8a29e' });
+    xList.forEach(t => seq.push({ type: 'item', t, group: 'x' }));
+  }
+
+  // คำนวณความสูง
+  const HEADER_H_TOP = 230;       // page header (top of every page)
+  const FOOTER_H = 100;            // page footer
+  const GROUP_H = 60;              // กลุ่ม row header
+  const MAX_PAGE_H = 1800;         // ความสูงสูงสุดต่อหน้า
+
+  // แบ่งหน้า — greedy fill
+  const pages = [];
+  let currentPage = [];
+  let currentH = HEADER_H_TOP + FOOTER_H;
+
+  for (const node of seq) {
+    const nodeH = node.type === 'header' ? GROUP_H : itemHeight(node.t);
+    if (currentH + nodeH > MAX_PAGE_H && currentPage.length > 0) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentH = HEADER_H_TOP + FOOTER_H;
+      // ถ้าตัดกลางกลุ่ม ให้ใส่ continuation header ในหน้าใหม่
+      if (node.type !== 'header') {
+        // หา group header ล่าสุดของ item นี้ → ถ้ามี ใส่ "(ต่อ)"
+        const lastHeader = [...seq].slice(0, seq.indexOf(node)).reverse().find(n => n.type === 'header');
+        if (lastHeader) {
+          currentPage.push({ ...lastHeader, label: lastHeader.label + ' (ต่อ)', isContinuation: true });
+          currentH += GROUP_H;
+        }
+      }
+    }
+    currentPage.push(node);
+    currentH += nodeH;
+  }
+  if (currentPage.length > 0) pages.push(currentPage);
+
+  const totalPages = pages.length;
+
+  // วาดทีละหน้า
+  const canvases = [];
+  for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+    const pageNodes = pages[pageIdx];
+
+    // คำนวณความสูงจริงของหน้านี้
+    let pageContentH = 0;
+    pageNodes.forEach(n => {
+      pageContentH += n.type === 'header' ? GROUP_H : itemHeight(n.t);
+    });
+    const H = HEADER_H_TOP + pageContentH + FOOTER_H + 30;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // BG
+    ctx.fillStyle = '#FAFAF9';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#047857';
+    ctx.fillRect(0, 0, W, 8);
+
+    // ═══ HEADER ═══
+    let y = 80;
+    ctx.fillStyle = '#0c4a3e';
+    ctx.font = `700 36px ${FONT}`;
+    ctx.fillText('รายละเอียดรายการเบิกเงิน', padding, y);
+    y += 38;
+
+    ctx.fillStyle = '#78716c';
+    ctx.font = `500 20px ${FONT}`;
+    ctx.fillText(subtitle || '', padding, y);
+    y += 30;
+
+    ctx.fillStyle = '#1c1917';
+    ctx.font = `600 24px ${FONT}`;
+    ctx.fillText(dateLabel, padding, y);
+    y += 28;
+
+    // page indicator
+    if (totalPages > 1) {
+      ctx.fillStyle = '#a8a29e';
+      ctx.font = `500 18px ${FONT}`;
+      const pageText = `หน้า ${pageIdx + 1}/${totalPages}`;
+      const pageW = ctx.measureText(pageText).width;
+      ctx.fillText(pageText, W - padding - pageW, y - 24);
+    }
+
+    // เส้นแบ่ง
+    ctx.strokeStyle = '#e7e5e4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding, y + 20);
+    ctx.lineTo(W - padding, y + 20);
+    ctx.stroke();
+    y = HEADER_H_TOP;
+
+    // ═══ ITEMS ═══
+    pageNodes.forEach(node => {
+      if (node.type === 'header') {
+        // group header
+        ctx.fillStyle = node.color;
+        ctx.fillRect(padding, y + 8, 5, 30);
+
+        ctx.fillStyle = '#1c1917';
+        ctx.font = `700 24px ${FONT}`;
+        ctx.fillText(node.label, padding + 18, y + 30);
+
+        ctx.fillStyle = '#a8a29e';
+        ctx.font = `400 16px ${FONT}`;
+        const ct = `(${node.count} รายการ)`;
+        const labelW = ctx.measureText(node.label).width;
+        ctx.fillText(ct, padding + 18 + labelW + 10, y + 30);
+
+        y += GROUP_H;
+      } else {
+        // item
+        const t = node.t;
+        const isX = t.paymentMethod === X_PAYMENT;
+        const isMedia = t.category === MEDIA_CATEGORY;
+        const isInstaller = t.category === INSTALLER_CATEGORY;
+        const isOT = t.category === OT_CATEGORY;
+        const txTeam = t.team || t.mediaTeam || '';
+
+        // bullet
         ctx.fillStyle = '#a8a29e';
         ctx.font = `500 22px ${FONT}`;
-        ctx.fillText('•', padding + 16, y + 28);
+        ctx.fillText('•', padding + 16, y + 26);
 
-        // Description
-        const isMediaItem = t.category === MEDIA_CATEGORY;
-        const isInstallerItem = t.category === INSTALLER_CATEGORY;
-        const isOTItem = t.category === OT_CATEGORY;
+        // หมวด + ทีม
+        let categoryLine = t.category;
+        if (isInstaller) categoryLine = `🔧 ช่างติดตั้ง${txTeam ? ` · ${txTeam}` : ''}`;
+        else if (isMedia) categoryLine = `🎥 ทีมมีเดีย${txTeam ? ` · ${txTeam}` : ''}`;
+        else if (isOT) categoryLine = '⏰ OT';
+
+        ctx.fillStyle = isX ? '#78716c' : (
+          isInstaller ? '#ea580c' : isMedia ? '#7c3aed' : isOT ? '#e11d48' : '#0c4a3e'
+        );
+        ctx.font = `600 18px ${FONT}`;
+        ctx.fillText(categoryLine, padding + 38, y + 22);
+
+        // amount (ขวาบน)
+        ctx.fillStyle = isX ? '#78716c' : '#1c1917';
+        ctx.font = `700 24px ${FONT}`;
+        const amt = `฿${fmt(t.amount)}`;
+        const amtW = ctx.measureText(amt).width;
+        ctx.fillText(amt, W - padding - amtW, y + 24);
+
+        // payment method (ขวาล่าง)
+        ctx.fillStyle = '#a8a29e';
+        ctx.font = `400 14px ${FONT}`;
+        const pmW = ctx.measureText(t.paymentMethod).width;
+        ctx.fillText(t.paymentMethod, W - padding - pmW, y + 44);
+
+        // description
         ctx.fillStyle = isX ? '#78716c' : '#292524';
-        ctx.font = `500 22px ${FONT}`;
-        let desc = t.description;
+        ctx.font = `500 20px ${FONT}`;
+        let desc = t.description || '';
         const maxDescW = W - padding * 2 - 280;
         if (ctx.measureText(desc).width > maxDescW) {
           while (ctx.measureText(desc + '...').width > maxDescW && desc.length > 0) {
@@ -2021,281 +2244,138 @@ async function renderSummaryImage(summary, dateLabel, subtitle) {
           }
           desc += '...';
         }
-        ctx.fillText(desc, padding + 38, y + 24);
+        ctx.fillText(desc, padding + 38, y + 50);
 
-        // Category line — มี prefix ตามหมวด
-        ctx.fillStyle = '#a8a29e';
-        ctx.font = `400 16px ${FONT}`;
-        let catLine = t.category;
-        const txTeam = t.team || t.mediaTeam || '';
-        const txSubType = t.subType || t.mediaSubType || '';  // legacy fallback
-        if (isMediaItem) {
-          const teamLabel = txTeam ? `🎥 ทีมมีเดีย · ${txTeam}` : '🎥 ทีมมีเดีย';
-          // ถ้ามี mileage: แสดงสรุปย่อ ถ้าไม่มี: ใช้ legacy subType
-          let extra = '';
-          if (t.mileage && t.mileage.distance > 0) {
-            extra = ` · ${t.mileage.distance.toFixed(0)} กม.`;
-          } else if (txSubType) {
-            extra = ` · ${txSubType}`;
-          }
-          catLine = `${teamLabel}${extra}`;
-          ctx.fillStyle = '#7c3aed';
-          ctx.font = `600 16px ${FONT}`;
-        } else if (isInstallerItem) {
-          const teamLabel = txTeam ? `🔧 ช่างติดตั้ง · ${txTeam}` : '🔧 ช่างติดตั้ง';
-          let extra = '';
-          if (t.mileage && t.mileage.distance > 0) {
-            extra = ` · ${t.mileage.distance.toFixed(0)} กม.`;
-          } else if (txSubType) {
-            extra = ` · ${txSubType}`;
-          }
-          catLine = `${teamLabel}${extra}`;
-          ctx.fillStyle = '#ea580c';
-          ctx.font = `600 16px ${FONT}`;
-        } else if (isOTItem) {
-          const otCount = t.ot && t.ot.count ? t.ot.count : 0;
-          const otRate = t.ot && t.ot.rate ? t.ot.rate : 0;
-          catLine = `⏰ OT · ${otCount} คน × ฿${otRate}`;
-          ctx.fillStyle = '#e11d48';
-          ctx.font = `600 16px ${FONT}`;
-        }
-        ctx.fillText(catLine, padding + 38, y + 48);
-
-        // Attachment indicator
+        // attachment indicator
         if (t.attachments && t.attachments.length > 0) {
-          const catW = ctx.measureText(catLine).width;
+          const descW = ctx.measureText(desc).width;
           ctx.fillStyle = '#10b981';
-          ctx.font = `600 16px ${FONT}`;
-          ctx.fillText('● มีหลักฐาน', padding + 38 + catW + 14, y + 48);
+          ctx.font = `600 14px ${FONT}`;
+          ctx.fillText('📎 มีหลักฐาน', padding + 38 + descW + 12, y + 50);
         }
 
-        // Amount
-        ctx.fillStyle = isX ? '#78716c' : '#1c1917';
-        ctx.font = `700 24px ${FONT}`;
-        const amt = `฿${fmt(t.amount)}`;
-        const aw = ctx.measureText(amt).width;
-        ctx.fillText(amt, W - padding - aw, y + 32);
+        let detailY = y + 78;
 
-        y += ITEM_H;
-      });
+        // mileage breakdown
+        if ((isMedia || isInstaller) && t.mileage) {
+          ctx.fillStyle = '#a8a29e';
+          ctx.font = `400 15px ${FONT}`;
+          const m = t.mileage;
+          const parts = [];
+          if (m.distance > 0) parts.push(`${m.distance.toFixed(1)} กม. × ฿${m.rate}`);
+          if (m.fuelCost > 0) parts.push(`น้ำมัน ฿${fmt(m.fuelCost)}`);
+          if (m.tollFee > 0) parts.push(`ด่วน ฿${fmt(m.tollFee)}`);
+          if (m.foodCost > 0) parts.push(`ข้าว ฿${fmt(m.foodCost)}`);
+          if (m.otherCost > 0) parts.push(`อื่นๆ ฿${fmt(m.otherCost)}`);
+          if (parts.length > 0) {
+            ctx.fillText(parts.join(' · '), padding + 38, detailY);
+            detailY += 22;
+          }
+        }
 
-      // Subtotal box
-      const bg = isX ? '#f5f5f4' : '#f0fdf4';
-      ctx.fillStyle = bg;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(padding, y, W - padding * 2, 60, 12);
-      else ctx.rect(padding, y, W - padding * 2, 60);
-      ctx.fill();
+        // OT detail
+        if (isOT && t.ot) {
+          ctx.fillStyle = '#a8a29e';
+          ctx.font = `400 15px ${FONT}`;
+          const otLine = `${t.ot.count} คน × ฿${t.ot.rate}${t.ot.workers ? ` · ${t.ot.workers.length > 60 ? t.ot.workers.slice(0, 60) + '...' : t.ot.workers}` : ''}`;
+          ctx.fillText(otLine, padding + 38, detailY);
+          detailY += 22;
+        }
 
-      ctx.fillStyle = accentColor;
-      ctx.fillRect(padding, y, 5, 60);
+        // note
+        if (t.note && t.note.length > 0) {
+          ctx.fillStyle = '#a8a29e';
+          ctx.font = `400 14px ${FONT}`;
+          let note = '“' + t.note + '”';
+          const maxNoteW = W - padding * 2 - 80;
+          if (ctx.measureText(note).width > maxNoteW) {
+            while (ctx.measureText(note + '...').width > maxNoteW && note.length > 5) {
+              note = note.slice(0, -1);
+            }
+            note += '..."';
+          }
+          ctx.fillText(note, padding + 38, detailY);
+        }
 
-      ctx.fillStyle = isX ? '#78716c' : '#0c4a3e';
-      ctx.font = `600 24px ${FONT}`;
-      ctx.fillText(subtotalLabel, padding + 24, y + 38);
-
-      ctx.font = `700 32px ${FONT}`;
-      const stText = `฿${fmt(items.reduce((s, t) => s + t.amount, 0))}`;
-      const stW = ctx.measureText(stText).width;
-      ctx.fillText(stText, W - padding - 24 - stW, y + 40);
-
-      y += SUBTOTAL_H;
-
-      if (isX) {
-        ctx.fillStyle = '#a8a29e';
-        ctx.font = `400 16px ${FONT}`;
-        ctx.fillText('* ไม่รวมในยอดเบิกที่ต้องจ่ายคืน', padding + 4, y + 18);
-        y += X_NOTE_H;
+        y += itemHeight(t);
       }
+    });
 
-      y += SECTION_GAP;
-    };
-
-    drawShift(groups['เช้า'], '#f59e0b', '☀ รอบเช้า', 'รวมรอบเช้า');
-    drawShift(groups['เย็น'], '#6366f1', '☾ รอบเย็น', 'รวมรอบเย็น');
-    drawShift(groups.X, '#a8a29e', 'รายการพี่ X โอนเอง', 'รวมพี่ X โอนเอง', true);
-  }
-
-  // ═══ TEAM SPLIT (ช่างติดตั้ง / ทีมมีเดีย / OT) ═══
-  if (showTeamSplit) {
-    y += 20;
-
-    // เส้นแบ่ง
+    // ═══ FOOTER ═══
+    const fy = H - 70;
     ctx.strokeStyle = '#e7e5e4';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(padding, y);
-    ctx.lineTo(W - padding, y);
+    ctx.moveTo(padding, fy - 20);
+    ctx.lineTo(W - padding, fy - 20);
     ctx.stroke();
-    y += 35;
-
-    ctx.fillStyle = '#1c1917';
-    ctx.font = `700 26px ${FONT}`;
-    ctx.fillText('สรุปตามทีม', padding, y);
-    y += 30;
-
-    const boxFullW = W - padding * 2;
-
-    // กล่องสรุปทีม — stack 3 การ์ด ครอบทั้งความกว้าง
-    const drawTeamCard = (bgColor, accentColor, titleColor, valueColor, label, total, count, detailLine) => {
-      ctx.fillStyle = bgColor;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(padding, y, boxFullW, 90, 12);
-      else ctx.rect(padding, y, boxFullW, 90);
-      ctx.fill();
-
-      ctx.fillStyle = accentColor;
-      ctx.fillRect(padding, y, 5, 90);
-
-      ctx.fillStyle = titleColor;
-      ctx.font = `600 22px ${FONT}`;
-      ctx.fillText(label, padding + 22, y + 35);
-
-      ctx.fillStyle = '#a8a29e';
-      ctx.font = `400 16px ${FONT}`;
-      ctx.fillText(`${count} รายการ`, padding + 22, y + 60);
-
-      // Total ขวา
-      ctx.fillStyle = valueColor;
-      ctx.font = `700 32px ${FONT}`;
-      const tText = `฿${fmt(total)}`;
-      const tW = ctx.measureText(tText).width;
-      ctx.fillText(tText, W - padding - 22 - tW, y + 50);
-
-      y += 100;
-
-      if (detailLine) {
-        ctx.fillStyle = accentColor;
-        ctx.font = `500 16px ${FONT}`;
-        ctx.fillText(detailLine, padding + 8, y + 14);
-        y += 22;
-      }
-    };
-
-    if (mediaSum.installerCount > 0) {
-      const parts = [];
-      if (mediaSum.installerSub.fuel > 0) parts.push(`น้ำมัน ฿${fmt(mediaSum.installerSub.fuel)}`);
-      if (mediaSum.installerSub.toll > 0) parts.push(`ด่วน ฿${fmt(mediaSum.installerSub.toll)}`);
-      if (mediaSum.installerSub.food > 0) parts.push(`ข้าว ฿${fmt(mediaSum.installerSub.food)}`);
-      if (mediaSum.installerSub.other > 0) parts.push(`อื่นๆ ฿${fmt(mediaSum.installerSub.other)}`);
-      const detail = parts.length > 0 ? parts.join(' · ') : '';
-      drawTeamCard('#fff7ed', '#f97316', '#9a3412', '#9a3412',
-        '🔧 ช่างติดตั้ง', mediaSum.installerTotal, mediaSum.installerCount, detail);
-    }
-
-    if (mediaSum.mediaCount > 0) {
-      const parts = [];
-      if (mediaSum.mediaSub.fuel > 0) parts.push(`น้ำมัน ฿${fmt(mediaSum.mediaSub.fuel)}`);
-      if (mediaSum.mediaSub.toll > 0) parts.push(`ด่วน ฿${fmt(mediaSum.mediaSub.toll)}`);
-      if (mediaSum.mediaSub.other > 0) parts.push(`อื่นๆ ฿${fmt(mediaSum.mediaSub.other)}`);
-      if (mediaSum.mediaDistance > 0) parts.push(`${mediaSum.mediaDistance.toFixed(1)} กม.`);
-      const detail = parts.length > 0 ? parts.join(' · ') : '';
-      drawTeamCard('#faf5ff', '#a855f7', '#6b21a8', '#6b21a8',
-        '🎥 ทีมมีเดีย', mediaSum.mediaTotal, mediaSum.mediaCount, detail);
-    }
-
-    if (mediaSum.otCount > 0) {
-      const detail = mediaSum.otTotalPeople > 0 ? `รวม ${mediaSum.otTotalPeople} คน` : '';
-      drawTeamCard('#fff1f2', '#e11d48', '#9f1239', '#9f1239',
-        '⏰ OT', mediaSum.otTotal, mediaSum.otCount, detail);
-    }
-
-    y += 20;
-  }
-
-  // ═══ PAYMENT BREAKDOWN (ขนาดรอง) ═══
-  if (breakdownLines.length > 0) {
-    y += 30;
-    ctx.strokeStyle = '#e7e5e4';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(padding, y);
-    ctx.lineTo(W - padding, y);
-    ctx.stroke();
-    y += 40;
 
     ctx.fillStyle = '#78716c';
-    ctx.font = `500 22px ${FONT}`;
-    ctx.fillText('รายละเอียดการจ่าย', padding, y);
-    y += 40;
+    ctx.font = `500 18px ${FONT}`;
+    ctx.fillText(`ยอดเบิกรวมสุทธิ`, padding, fy + 8);
 
-    breakdownLines.forEach(([label, amount, faded]) => {
-      ctx.fillStyle = faded ? '#a8a29e' : '#57534e';
-      ctx.font = `500 22px ${FONT}`;
-      ctx.fillText(label, padding + 8, y + 22);
+    ctx.fillStyle = '#0c4a3e';
+    ctx.font = `700 24px ${FONT}`;
+    const tot = `฿${fmt(summary.total)}`;
+    const totW = ctx.measureText(tot).width;
+    ctx.fillText(tot, W - padding - totW, fy + 10);
 
-      ctx.fillStyle = faded ? '#a8a29e' : '#1c1917';
-      ctx.font = `600 24px ${FONT}`;
-      const t = `฿${fmt(amount)}`;
-      const tw = ctx.measureText(t).width;
-      ctx.fillText(t, W - padding - tw, y + 22);
-
-      y += 42;
-    });
-    y += 20;
+    canvases.push(canvas);
   }
 
-  // ═══ NOTE ═══
-  if (summary.xTotal > 0) {
-    ctx.fillStyle = '#a8a29e';
-    ctx.font = `400 17px ${FONT}`;
-    ctx.fillText('* รายการ "พี่ X โอนเอง" บันทึกเพื่อเก็บข้อมูล แต่ไม่รวมในยอดเบิก', padding, y + 22);
-  }
-
-  // ═══ ยอดเบิกรวมสุทธิ (ใหญ่ที่สุด อยู่ล่างสุด) ═══
-  const blockY = H - footerH;
-
-  ctx.fillStyle = '#064e3b';
-  ctx.fillRect(0, blockY, W, footerH);
-
-  ctx.fillStyle = '#10b981';
-  ctx.fillRect(0, blockY, W, 5);
-
-  ctx.fillStyle = '#a7f3d0';
-  ctx.font = `500 28px ${FONT}`;
-  ctx.fillText('ยอดเบิกรวมสุทธิ', padding, blockY + 70);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `700 140px ${FONT}`;
-  ctx.fillText(`฿${fmt(summary.total)}`, padding, blockY + 215);
-
-  ctx.fillStyle = '#6ee7b7';
-  ctx.font = `400 18px ${FONT}`;
-  ctx.fillText(`(${fmtInt(summary.yCount)} รายการ ไม่รวมพี่ X จ่ายเอง)`, padding, blockY + 255);
-
-  return canvas;
+  return canvases;
 }
 
+
 // ─── Modal ตัวอย่างรูป ──────────────────────────────────────────
-function ImagePreviewModal({ canvas, filename, onClose }) {
-  const [imgUrl, setImgUrl] = useState(null);
+// รับ items: array ของ { canvas, name, label }
+// แสดงทุกรูปเรียงต่อกัน + ปุ่มดาวน์โหลดทีละไฟล์ + ดาวน์โหลดทั้งหมดในครั้งเดียว
+function ImagePreviewModal({ items, onClose }) {
+  const list = Array.isArray(items) ? items : [];
+  const [urls, setUrls] = useState([]);
+  const [downloadedAll, setDownloadedAll] = useState(false);
 
   useEffect(() => {
-    if (!canvas) return;
-    let url;
-    canvas.toBlob(blob => {
-      if (blob) {
-        url = URL.createObjectURL(blob);
-        setImgUrl(url);
-      }
-    }, 'image/png');
+    if (list.length === 0) return;
+    const generatedUrls = [];
+    let pending = list.length;
+    list.forEach((item, i) => {
+      item.canvas.toBlob(blob => {
+        if (blob) generatedUrls[i] = URL.createObjectURL(blob);
+        pending--;
+        if (pending === 0) setUrls([...generatedUrls]);
+      }, 'image/png');
+    });
     return () => {
-      if (url) URL.revokeObjectURL(url);
+      generatedUrls.forEach(u => u && URL.revokeObjectURL(u));
     };
-  }, [canvas]);
+    // eslint-disable-next-line
+  }, [items]);
 
-  const download = () => {
-    canvas.toBlob(blob => {
+  const downloadOne = (idx) => {
+    const item = list[idx];
+    if (!item) return;
+    item.canvas.toBlob(blob => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = item.name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, 'image/png');
+  };
+
+  const downloadAll = async () => {
+    // ดาวน์โหลดทีละไฟล์ห่างกัน 300ms (browser บาง browser blocks ถ้าเร็วเกิน)
+    for (let i = 0; i < list.length; i++) {
+      downloadOne(i);
+      await new Promise(r => setTimeout(r, 350));
+    }
+    setDownloadedAll(true);
+    setTimeout(() => setDownloadedAll(false), 3000);
   };
 
   return (
@@ -2304,35 +2384,63 @@ function ImagePreviewModal({ canvas, filename, onClose }) {
         <div className="flex items-center justify-between mb-3 flex-shrink-0">
           <div>
             <h3 className="text-base font-semibold text-stone-900">รูปสรุปส่งพี่ X</h3>
-            <p className="text-[11px] text-stone-500">บันทึกแล้วส่งทาง LINE ได้เลย</p>
+            <p className="text-[11px] text-stone-500">
+              {list.length === 1 ? "1 รูป" : `${list.length} รูป`} · บันทึกแล้วส่งทาง LINE ได้เลย
+            </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 grid place-items-center rounded-full hover:bg-stone-100">
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-stone-100 rounded-xl p-3 mb-3 flex justify-center">
-          {imgUrl ? (
-            <img src={imgUrl} alt="สรุปยอด" className="w-full max-w-sm rounded-lg shadow-md" />
+        {/* รายการรูปทั้งหมด */}
+        <div className="flex-1 overflow-y-auto bg-stone-100 rounded-xl p-3 mb-3 space-y-3">
+          {list.length === 0 ? (
+            <div className="text-stone-400 text-sm py-10 text-center">กำลังสร้างรูป...</div>
           ) : (
-            <div className="text-stone-400 text-sm py-10">กำลังสร้างรูป...</div>
+            list.map((item, i) => (
+              <div key={i} className="bg-white rounded-lg p-2.5 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11.5px] font-semibold text-stone-700">{item.label}</span>
+                  <button
+                    onClick={() => downloadOne(i)}
+                    disabled={!urls[i]}
+                    className="text-[11px] px-2 py-0.5 rounded bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-700 font-medium flex items-center gap-1"
+                  >
+                    <Download size={11} />บันทึก
+                  </button>
+                </div>
+                {urls[i] ? (
+                  <img src={urls[i]} alt={item.label} className="w-full rounded shadow-sm" />
+                ) : (
+                  <div className="text-stone-400 text-[11px] py-6 text-center">กำลังสร้าง...</div>
+                )}
+              </div>
+            ))
           )}
         </div>
 
+        {/* ปุ่มหลัก */}
         <button
-          onClick={download}
-          disabled={!imgUrl}
+          onClick={downloadAll}
+          disabled={urls.length !== list.length || list.length === 0}
           className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-stone-300 text-white py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2"
         >
-          <Download size={16} />ดาวน์โหลดรูป
+          {downloadedAll ? (
+            <><Check size={16} />ดาวน์โหลดเรียบร้อย</>
+          ) : (
+            <><Download size={16} />ดาวน์โหลดทั้งหมด ({list.length} รูป)</>
+          )}
         </button>
         <p className="text-[10.5px] text-stone-400 text-center mt-2">
-          กดค้างที่รูปเพื่อบันทึกลงเครื่อง หรือกดดาวน์โหลดด้านบน
+          หรือกดค้างที่รูปแต่ละรูปเพื่อบันทึกลงเครื่อง
         </p>
       </div>
     </div>
   );
 }
+
+
 
 // ─── Modal ดูไฟล์แนบ ───────────────────────────────────────────
 function AttachmentViewer({ attachments, onClose }) {

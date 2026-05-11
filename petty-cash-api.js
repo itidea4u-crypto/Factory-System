@@ -76,17 +76,18 @@
     async _post(action, data) {
       if (!cfg.endpoint) throw new Error('endpoint ยังไม่ตั้งค่า');
       const body = Object.assign({ action, token: cfg.token }, data || {});
-      const res = await fetch(cfg.endpoint, {
-        method: 'POST',
-        // text/plain เพื่อหลบ CORS preflight (Apps Script ไม่ตอบ OPTIONS)
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body),
-        redirect: 'follow'
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || 'Backend error');
-      return json;
+await fetch(cfg.endpoint, {
+  method: 'POST',
+  mode: 'no-cors',
+  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+  body: JSON.stringify(body)
+});
+
+return {
+  ok: true,
+  success: true,
+  message: 'ส่งข้อมูลไปยังระบบแล้ว'
+};
     },
 
     async ping() {

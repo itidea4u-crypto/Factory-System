@@ -441,5 +441,49 @@ return {
       console.warn('[PettyCashAPI] ping failed:', e.message);
     });
   }
+  // ─── LocalStorage Bridge ─────────────────────────────────────
+  // ดักกรณี app code เขียน localStorage.setItem('petty_cash_v3', ...)
+  // แล้วส่งรายการใหม่เข้า backend อัตโนมัติ
+  const _originalSetItem = Storage.prototype.setItem;
 
+  Storage.prototype.setItem = function (key, value) {
+    const oldValue = this.getItem(key);
+    const result = _originalSetItem.apply(this, arguments);
+
+    if (MODE === 'online' && key === STORAGE_KEY_V3) {
+      setTimeout(async () => {
+        try {
+          const oldParsed = JSON.parse(oldValue || '{"transactions":[]}');
+          const newParsed = JSON.parse(value || '{"transactions":[]}');
+
+          const oldTxs = oldParsed.transactions || [];
+          const newTxs = newParsed.transactions || [];
+
+          const oldIds = new Set(oldTxs.map(t => t.id || t.record_id));
+          const added = newTxs.filter(t => !oldIds.has(t.id || t.record_id));
+
+          for (const tx of added) {
+            console.log('[PettyCashAPI] auto sync create:', tx);
+            await sendCreate(tx);
+          }
+
+          if (added.length > 0) {
+            cachedTxs = await loadFromBackend();
+            status.connected = true;
+            status.error = null;
+            status.lastSync = new Date().toISOString();
+            notifyStatus();
+          }
+
+        } catch (e) {
+          console.error('[PettyCashAPI] localStorage bridge sync failed:', e);
+          status.connected = false;
+          status.error = e.message;
+          notifyStatus();
+        }
+      }, 0);
+    }
+
+    return result;
+  };
 })(window);

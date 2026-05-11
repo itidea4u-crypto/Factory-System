@@ -267,6 +267,31 @@
   </div>
   <div id="root"></div>
 
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- CONFIG — พี่หญิงแก้ค่าตรงนี้หลังจาก setup Apps Script เสร็จ -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <script>
+    window.PETTY_CASH_CONFIG = {
+      mode: 'online',
+      // ◀── ใส่ Web App URL จาก Apps Script Deploy ตรงนี้
+      endpoint: 'PASTE_WEB_APP_URL_HERE',
+      // ◀── ใส่ AUTH_TOKEN จาก Logger.log() ตอนรัน setup() ตรงนี้
+      token: 'PASTE_AUTH_TOKEN_HERE',
+      user: 'พี่ญ'
+    };
+
+    // ถ้ายังไม่ตั้งค่า → fallback เป็น demo mode อัตโนมัติ
+    if (!window.PETTY_CASH_CONFIG.endpoint ||
+        window.PETTY_CASH_CONFIG.endpoint === 'PASTE_WEB_APP_URL_HERE') {
+      console.warn('[PettyCashConfig] endpoint ยังไม่ตั้งค่า — ใช้ demo mode (localStorage)');
+      window.PETTY_CASH_CONFIG.mode = 'demo';
+    }
+  </script>
+
+  <!-- API Client — ต้องโหลดก่อน app code -->
+  <script src="./petty-cash-api.js"></script>
+
+  <!-- App code (compiled by Babel at runtime) -->
   <script type="text/babel" data-presets="react">
 /* ─────────────────────────────────────────────────────────────
  * ระบบเบิกเงินสดย่อย — Standalone version for GitHub Pages
@@ -607,6 +632,54 @@ async function loadAttachment(id) {
   } catch (e) { return null; }
 }
 
+// ─── Connection Status Badge ─────────────────────────────────
+function ConnStatusBadge({ status }) {
+  const { mode, connected, error } = status;
+  let label, bg, color, dotColor;
+
+  if (mode === 'demo') {
+    label = 'Demo';
+    bg = '#fef3c7'; color = '#92400e'; dotColor = '#f59e0b';
+  } else if (connected === true) {
+    label = 'Online';
+    bg = '#d1fae5'; color = '#065f46'; dotColor = '#10b981';
+  } else if (connected === false) {
+    label = 'Offline';
+    bg = '#fee2e2'; color = '#991b1b'; dotColor = '#ef4444';
+  } else {
+    label = '...';
+    bg = '#f5f5f4'; color = '#57534e'; dotColor = '#a8a29e';
+  }
+
+  return (
+    <div
+      title={error || `${mode === 'online' ? 'เชื่อม Google Sheets' : 'ใช้ localStorage'}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '3px 8px',
+        borderRadius: '6px',
+        background: bg,
+        color: color,
+        fontSize: '10.5px',
+        fontWeight: 600,
+        flexShrink: 0,
+        whiteSpace: 'nowrap'
+      }}
+    >
+      <span style={{
+        display: 'inline-block',
+        width: '6px', height: '6px',
+        borderRadius: '50%',
+        background: dotColor,
+        animation: connected === null ? 'spin 1s linear infinite' : 'none'
+      }} />
+      {label}
+    </div>
+  );
+}
+
 // ─── Main App ────────────────────────────────────────────────────
 function PettyCashSystem() {
   const [tab, setTab] = useState("add");
@@ -615,6 +688,21 @@ function PettyCashSystem() {
   const [toast, setToast] = useState(null);
   const [previewItems, setPreviewItems] = useState(null);
   const [viewingAtts, setViewingAtts] = useState(null);
+  const [connStatus, setConnStatus] = useState({
+    mode: (window.PettyCashStatus && window.PettyCashStatus.mode) || 'demo',
+    connected: null,
+    error: null
+  });
+
+  // Subscribe to API status changes
+  useEffect(() => {
+    if (typeof window.onPettyCashStatusChange === 'function') {
+      const unsub = window.onPettyCashStatusChange((s) => {
+        setConnStatus({ mode: s.mode, connected: s.connected, error: s.error });
+      });
+      return unsub;
+    }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -724,6 +812,7 @@ function PettyCashSystem() {
               <h1 className="app-brand-title">ระบบเบิกเงินสดย่อย</h1>
               <p className="app-brand-subtitle">บันทึก · ดูย้อนหลัง · สร้างรูปสรุปส่งพี่ X</p>
             </div>
+            <ConnStatusBadge status={connStatus} />
           </div>
 
           <nav className="app-tabs">

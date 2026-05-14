@@ -188,18 +188,28 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 
 /* Print page header — production: clean black centered */
 .print-page.production .print-page-header {
-  text-align: center; border-bottom: 1.5px solid #1A1A1A;
-  padding-bottom: 8px; margin-bottom: 10px;
+  text-align: center; border-bottom: 1px solid #1A1A1A;
+  padding-bottom: 3px; margin-bottom: 5px;
 }
 .print-page.production .print-title {
   font-family: 'Kanit', sans-serif;
-  font-weight: 700; font-size: 22px;
+  font-weight: 700; font-size: 17px;
   color: #1A1A1A; letter-spacing: 0;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 .print-page.production .print-meta {
-  font-family: 'Kanit', sans-serif; font-size: 14px;
-  margin-top: 3px; color: #1A1A1A;
+  font-family: 'Kanit', sans-serif; font-size: 11px;
+  margin-top: 1px; color: #1A1A1A;
+  line-height: 1.2;
+}
+/* ─── Production page: maximize A4 usage ───
+   ลด padding รอบหน้า + ลด gap ของ grid → cell ใหญ่ขึ้น → รูปใหญ่ขึ้น
+   ใช้เฉพาะหน้าใบงานผลิตจริง (ไม่กระทบ installation, summary) */
+.print-page.production {
+  padding: 4mm 5mm;
+}
+.print-page.production .print-grid {
+  gap: 4px;
 }
 .print-grid { display: grid; gap: 6px; flex: 1; min-height: 0; }
 .print-grid.cols-2 {
@@ -240,7 +250,14 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
   background: #FAFAF7; min-height: 0;
   position: relative;
 }
-.print-cell-production img { width: 100%; height: 100%; object-fit: contain; }
+.print-cell-production img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  /* ขยายรูปนิดหน่อยเพื่อกินช่องว่าง letterbox โดยไม่เบี้ยว
+     (cell มี overflow:hidden + photo ส่วนใหญ่ subject อยู่กลาง → ครอบขอบ ~2% ไม่กระทบข้อมูล) */
+  transform: scale(1.04);
+  transform-origin: center;
+}
 .print-cell-empty { background: #F5F3EE; width: 100%; height: 100%; }
 .cell-num-badge {
   position: absolute; top: 0; left: 0;

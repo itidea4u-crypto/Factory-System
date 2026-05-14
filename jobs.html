@@ -1049,10 +1049,15 @@ async function loadExisting() {
     if (errors.length === results.length) throw new Error(errors[0].error);
 
     jobItems = [];
+    let imageErrorCount = 0;
     for (const {team, jobs} of results) {
       for (const j of jobs) {
+        if (j.imageDataError && !j.imageData) imageErrorCount++;
         jobItems.push({
-          id: j.id, imageUrl: j.imageUrl,
+          id: j.id,
+          imageUrl: j.imageUrl,
+          imageData: j.imageData || '',  // backend ส่ง dataURL → frontend ไม่ต้อง fetch จาก Drive (เลี่ยง CORS)
+          imageDataError: j.imageDataError || '',  // ถ้า backend ดึงรูปไม่ได้
           location: j.location||'', note: j.note||'',
           team, isNew: false,
         });
@@ -1069,10 +1074,14 @@ async function loadExisting() {
     if (errors.length > 0) {
       status.innerHTML += '<div class="status-box warn">⚠️ บางทีมโหลดไม่สำเร็จ — ลองรีเฟรช</div>';
     }
+    if (imageErrorCount > 0) {
+      status.innerHTML += '<div class="status-box warn">⚠️ บางรูปดึงจาก Drive ไม่สำเร็จ (' + imageErrorCount + ' รูป) — รูปอาจไม่ปรากฏใน export</div>';
+    }
     renderJobItems();
 
-    // Pre-fetch รูปทั้งหมดเป็น dataURL → cache ใน memory
-    // ทำในพื้นหลัง ไม่ block UI; พอเสร็จ render ทับด้วย dataURL
+    // Fallback: ถ้า backend ไม่ส่ง imageData มาด้วย (เช่น GAS เวอร์ชันเก่า หรือ Drive fetch ล้ม)
+    // → ลอง prefetch จาก frontend อีกชั้น (อาจติด CORS แต่ก็ดีกว่าไม่ลอง)
+    // ถ้า backend ส่ง imageData ครบทุกรูป → prefetchImages() จะ no-op ตามที่ filter ภายใน
     if (total > 0) prefetchImages();
   } catch (err) {
     status.innerHTML = '<div class="status-box warn">⚠️ ' + esc(err.message) +
@@ -1861,7 +1870,10 @@ async function loadAllJobsForWorkType(workTypeKey, date) {
   for (const {team, jobs} of results) {
     for (const j of jobs) {
       items.push({
-        id: j.id, imageUrl: j.imageUrl,
+        id: j.id,
+        imageUrl: j.imageUrl,
+        imageData: j.imageData || '',  // backend ส่ง dataURL → frontend ไม่ต้อง fetch
+        imageDataError: j.imageDataError || '',
         location: j.location||'', note: j.note||'',
         team,
       });

@@ -210,6 +210,27 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
   grid-template-columns: 1fr 1fr;
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
 }
+/* ─── หน้าติดตั้งที่มีงานไม่ครบ 6 ─── 
+   ไม่ render ช่องว่าง + ขยาย card ใช้พื้นที่เต็ม
+   หน้าครบ 6 ไม่ใส่ class นี้ → ใช้ layout เดิม */
+.print-grid.cols-2-3.count-5 > :last-child {
+  grid-column: span 2;
+}
+.print-grid.cols-2-3.count-4 {
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+.print-grid.cols-2-3.count-3 {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+.print-grid.cols-2-3.count-2 {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+.print-grid.cols-2-3.count-1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
 .print-grid > * { min-height: 0; min-width: 0; }
 
 /* Production cell */
@@ -1528,9 +1549,17 @@ function renderPreview() {
 function buildPage(pageItems, start, isInstall, perPage, team, date, pageNum, totalTeamPages, globalPageIdx) {
   const typeLabel = isInstall ? 'ติดตั้ง' : 'ผลิต';
   const gridClass = isInstall ? 'cols-2-3' : 'cols-2';
+  // หน้าติดตั้งที่ไม่เต็ม 6 → render เฉพาะ items ที่มี (ไม่มี placeholder ช่องว่าง)
+  //                       + เพิ่ม count-N class ให้ grid ขยาย card ใช้พื้นที่เต็ม
+  // หน้าครบ 6 → ไม่ใส่ class (ใช้ 2x3 เดิม)
+  // หน้าผลิต  → behavior เดิม loop perPage (user สั่งว่าไม่ต้องแตะ)
+  const actualCount = pageItems.length;
+  const cellLoopCount = isInstall ? actualCount : perPage;
+  const partialInstallClass = (isInstall && actualCount > 0 && actualCount < perPage)
+    ? ' count-' + actualCount : '';
 
   let cells = '';
-  for (let i = 0; i < perPage; i++) {
+  for (let i = 0; i < cellLoopCount; i++) {
     const item = pageItems[i];
     const numStr = String(start + i + 1).padStart(2, '0');
     const imgSrc = item ? (item.imageData || resolveImageUrl(item.imageUrl) || '') : '';
@@ -1575,7 +1604,7 @@ function buildPage(pageItems, start, isInstall, perPage, team, date, pageNum, to
     ' data-page-num="' + pageNum + '"' +
     ' data-total-team-pages="' + totalTeamPages + '">' +
     '<div class="print-page-header">' + headerHtml + '</div>' +
-    '<div class="print-grid ' + gridClass + '">' + cells + '</div>' +
+    '<div class="print-grid ' + gridClass + partialInstallClass + '">' + cells + '</div>' +
   '</div>';
 }
 

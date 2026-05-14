@@ -253,9 +253,9 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .print-cell-production img {
   width: 100%; height: 100%;
   object-fit: contain;
-  /* ขยายรูปนิดหน่อยเพื่อกินช่องว่าง letterbox โดยไม่เบี้ยว
-     (cell มี overflow:hidden + photo ส่วนใหญ่ subject อยู่กลาง → ครอบขอบ ~2% ไม่กระทบข้อมูล) */
-  transform: scale(1.04);
+  /* ขยายรูปเล็กน้อยเพื่อกินช่อง letterbox โดยรักษาข้อมูลขอบ
+     scale 1.02 ครอบขอบ ~1% ของฝั่งที่รูปฟิตเต็ม — ตัวอักษร LOT/วันที่/QC ที่อยู่ห่างขอบ ≥1.5% ยังเห็นครบ */
+  transform: scale(1.02);
   transform-origin: center;
 }
 .print-cell-empty { background: #F5F3EE; width: 100%; height: 100%; }

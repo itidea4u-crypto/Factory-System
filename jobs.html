@@ -307,6 +307,50 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
   .summary-team-thumbs { grid-template-columns: repeat(4, 1fr); }
 }
 
+/* ─── Compact summary — production only ───
+   5 thumbs/แถว + ทุกอย่างเล็กลงเพื่อจุงานเยอะใน 1 หน้า A4
+   installation summary ใช้สไตล์เดิม ไม่กระทบ */
+.summary-page-compact .summary-page-header {
+  padding-bottom: 6px; margin-bottom: 8px;
+  border-bottom-width: 1.5px;
+}
+.summary-page-compact .summary-page-title { font-size: 22px; letter-spacing: 0.5px; }
+.summary-page-compact .summary-page-subtitle { font-size: 12px; margin-top: 2px; }
+.summary-page-compact .summary-page-stats { margin-top: 5px; gap: 18px; font-size: 11px; }
+.summary-page-compact .summary-page-stats strong { font-size: 18px; }
+.summary-page-compact .summary-team-section { margin-bottom: 7px; }
+.summary-page-compact .summary-team-header {
+  padding: 4px 9px; gap: 8px;
+}
+.summary-page-compact .summary-team-name { font-size: 14px; }
+.summary-page-compact .summary-team-count { font-size: 12px; padding: 2px 6px; }
+.summary-page-compact .summary-team-thumbs {
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px; padding: 4px;
+}
+.summary-page-compact .summary-thumb-num {
+  font-size: 10px; padding: 1px 4px;
+}
+.summary-page-compact .summary-thumb-loc {
+  font-size: 8px; padding: 1px 3px; line-height: 1.15;
+}
+.summary-page-compact .summary-empty-team {
+  padding: 6px 8px; font-size: 11px;
+}
+/* Header เล็กสำหรับหน้า continuation ของ summary ที่แตกหลายหน้า */
+.summary-page-header-mini {
+  background: #1A1A1A; color: #FFF;
+  padding: 5px 12px;
+  font-family: 'Kanit', sans-serif;
+  font-size: 12px; font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: 0.3px;
+}
+@media (max-width: 820px) {
+  /* บนมือถือ ปกติ summary จะถูก force เป็น 4 cols แต่ compact ต้องยังเป็น 5 */
+  .summary-page-compact .summary-team-thumbs { grid-template-columns: repeat(5, 1fr); }
+}
+
 /* Installation cell — matches reference: title row + notes + image at bottom */
 .print-cell-install {
   border: 1px solid #D6D1C7; padding: 8px 10px;
@@ -1536,6 +1580,166 @@ function buildPage(pageItems, start, isInstall, perPage, team, date, pageNum, to
 }
 
 // ============================================================================
+//  PRODUCTION SUMMARY — แผ่นสรุปงานผลิต (compact + split หลายหน้าได้)
+//  ใช้เฉพาะกับ workType=production; installation ยังใช้ buildSummaryPage ด้านล่าง
+// ============================================================================
+function buildProductionSummary(allItems, date, summaryIdxStart) {
+  const teams = TEAMS.production;
+  const byTeam = {};
+  for (const t of teams) byTeam[t] = [];
+  for (const item of allItems) {
+    if (item.team && byTeam[item.team]) byTeam[item.team].push(item);
+  }
+
+  const totalJobs = allItems.length;
+  const teamsWithWork = teams.filter(t => byTeam[t].length > 0).length;
+
+  // ─── ค่าโดยประมาณของ rendered height (px @ A4 794x1123) ของ summary-page-compact ───
+  // ใช้เผื่อ pack หน้าให้ไม่ล้น — ค่าค่อนข้าง conservative เพื่อกันรูปโดนตัด
+  const PAGE_AVAIL    = 1025;  // A4 height 1123 − padding 75 − safety ~23
+  const MAIN_HEADER_H = 92;    // header หน้าแรก (title + subtitle + stats + border)
+  const CONT_HEADER_H = 32;    // header หน้าต่อ (แถบดำเล็ก)
+  const TEAM_HEAD_H   = 28;    // team header bar
+  const SEC_MARGIN    = 7;
+  const GRID_VT_PAD   = 9;     // padding บน-ล่าง + border bottom ของ thumbs grid
+  const ROW_H         = 135;   // ความสูง 1 แถว thumb (5 cols @ A4)
+  const ROW_GAP       = 3;
+  const EMPTY_MSG_H   = 24;
+
+  function sectionH(items) {
+    if (items.length === 0) return TEAM_HEAD_H + EMPTY_MSG_H + SEC_MARGIN;
+    const rows = Math.ceil(items.length / 5);
+    return TEAM_HEAD_H + GRID_VT_PAD + rows * ROW_H + (rows - 1) * ROW_GAP + SEC_MARGIN;
+  }
+  function maxItemsInBudget(budget) {
+    const usable = budget - TEAM_HEAD_H - GRID_VT_PAD - SEC_MARGIN;
+    if (usable < ROW_H) return 0;
+    const rows = Math.floor((usable + ROW_GAP) / (ROW_H + ROW_GAP));
+    return rows * 5;
+  }
+
+  // เรียง sections ตามลำดับทีม + numbering ต่อเนื่อง
+  const sections = [];
+  let runningNum = 1;
+  for (const team of teams) {
+    sections.push({ team, items: byTeam[team], startNum: runningNum });
+    runningNum += byTeam[team].length;
+  }
+
+  // ─── Pack เข้าหน้า — fallback กรณีงานเยอะเกิน 1 หน้า ───
+  const pages = [];
+  let current = { sections: [], used: 0, firstPage: true };
+  function flush() {
+    if (current.sections.length > 0) {
+      pages.push({ sections: current.sections, firstPage: current.firstPage });
+    }
+    current = { sections: [], used: 0, firstPage: false };
+  }
+
+  for (const sec of sections) {
+    const budget = PAGE_AVAIL - (current.firstPage ? MAIN_HEADER_H : CONT_HEADER_H);
+    const h = sectionH(sec.items);
+
+    // ทีมนี้ใหญ่เกินกว่าจะอยู่ใน 1 หน้าได้ → แตก items ข้ามหน้า
+    if (h > budget) {
+      flush();
+      let chunkStart = 0, chunkIdx = 0;
+      while (chunkStart < sec.items.length) {
+        const isFirstOfAll = (pages.length === 0 && chunkIdx === 0);
+        const chunkBudget = PAGE_AVAIL - (isFirstOfAll ? MAIN_HEADER_H : CONT_HEADER_H);
+        const maxItems = maxItemsInBudget(chunkBudget);
+        if (maxItems <= 0) break; // safety
+        const chunkItems = sec.items.slice(chunkStart, chunkStart + maxItems);
+        pages.push({
+          sections: [{
+            team: sec.team,
+            items: chunkItems,
+            startNum: sec.startNum + chunkStart,
+            isContinuation: chunkIdx > 0,
+          }],
+          firstPage: isFirstOfAll,
+        });
+        chunkStart += maxItems;
+        chunkIdx++;
+      }
+      continue;
+    }
+
+    // ทีมปกติ → ถ้าไม่พอที่ในหน้านี้ ขึ้นหน้าใหม่
+    if (current.used + h > budget && current.sections.length > 0) flush();
+    current.sections.push(sec);
+    current.used += h;
+  }
+  flush();
+
+  if (pages.length === 0) return { html: '', pageCount: 0 };
+
+  // ─── Render ───
+  const totalPages = pages.length;
+  let html = '';
+  pages.forEach((page, i) => {
+    const pageNum = i + 1;
+    const pageIdx = summaryIdxStart + i;
+
+    let headerHtml;
+    if (page.firstPage) {
+      const pageBadge = totalPages > 1
+        ? ' <span style="font-size:14px;color:#5A5550;font-family:\'Kanit\',sans-serif;letter-spacing:0;">(หน้า ' + pageNum + '/' + totalPages + ')</span>'
+        : '';
+      headerHtml = '<div class="summary-page-header">' +
+        '<div class="summary-page-title">SUMMARY · งานผลิต' + pageBadge + '</div>' +
+        '<div class="summary-page-subtitle">วันที่ ' + fmtDateShort(date) + '</div>' +
+        '<div class="summary-page-stats">' +
+          '<div><strong>' + totalJobs + '</strong> ใบงาน</div>' +
+          '<div><strong>' + teamsWithWork + '</strong> ทีมที่มีงาน</div>' +
+        '</div>' +
+      '</div>';
+    } else {
+      headerHtml = '<div class="summary-page-header-mini">' +
+        'SUMMARY · งานผลิต (ต่อ ' + pageNum + '/' + totalPages + ') · ' + fmtDateShort(date) +
+      '</div>';
+    }
+
+    let teamsHtml = '';
+    for (const sec of page.sections) {
+      const teamLabel = '🔨 ' + esc(sec.team) + (sec.isContinuation ? ' (ต่อ)' : '');
+      teamsHtml += '<div class="summary-team-section">' +
+        '<div class="summary-team-header">' +
+          '<div class="summary-team-name">' + teamLabel + '</div>' +
+          '<div class="summary-team-count">' + sec.items.length + ' ใบ</div>' +
+        '</div>';
+      if (sec.items.length === 0) {
+        teamsHtml += '<div class="summary-empty-team">— ไม่มีงาน —</div>';
+      } else {
+        teamsHtml += '<div class="summary-team-thumbs">';
+        sec.items.forEach((item, idx) => {
+          const num = sec.startNum + idx;
+          const imgSrc = item.imageData || resolveImageUrl(item.imageUrl) || '';
+          const numStr = String(num).padStart(2, '0');
+          const loc = item.location ? '<div class="summary-thumb-loc">' + esc(item.location) + '</div>' : '';
+          teamsHtml += '<div class="summary-thumb">' +
+            '<div class="summary-thumb-num">' + numStr + '</div>' +
+            (imgSrc ? '<img src="' + esc(imgSrc) + '" data-original="' + esc(item.imageUrl||'') + '" referrerpolicy="no-referrer" onerror="handleImgError(this)">' : '') +
+            loc +
+          '</div>';
+        });
+        teamsHtml += '</div>';
+      }
+      teamsHtml += '</div>';
+    }
+
+    html += '<div class="print-page production summary-page-compact" id="summaryPage_' + pageIdx + '"' +
+      ' data-summary="1" data-work-type="production"' +
+      ' data-summary-page-num="' + pageNum + '"' +
+      ' data-summary-total-pages="' + totalPages + '">' +
+      headerHtml + teamsHtml +
+    '</div>';
+  });
+
+  return { html, pageCount: totalPages };
+}
+
+// ============================================================================
 //  SUMMARY PAGE — แผ่นสรุปงานของวันให้เจ้าของดู
 // ============================================================================
 function buildSummaryPage(workTypeKey, allItems, date, summaryIdx) {
@@ -1695,8 +1899,18 @@ async function exportAllPages() {
   summaryContainer.style.cssText = 'position:absolute;left:-99999px;top:0;width:210mm;visibility:visible;';
 
   let summaryHtml = '';
-  if (prodItems.length > 0) summaryHtml += buildSummaryPage('production', prodItems, date, 0);
-  if (instItems.length > 0) summaryHtml += buildSummaryPage('installation', instItems, date, 1);
+  let summaryIdx = 0;
+  if (prodItems.length > 0) {
+    // งานผลิตใช้ buildProductionSummary — compact + split หลายหน้าถ้างานเยอะ
+    const result = buildProductionSummary(prodItems, date, summaryIdx);
+    summaryHtml += result.html;
+    summaryIdx += result.pageCount;
+  }
+  if (instItems.length > 0) {
+    // งานติดตั้งใช้ layout เดิม (6 cols)
+    summaryHtml += buildSummaryPage('installation', instItems, date, summaryIdx);
+    summaryIdx += 1;
+  }
   summaryContainer.innerHTML = summaryHtml;
   document.body.appendChild(summaryContainer);
   await new Promise(r => setTimeout(r, 200)); // รอ render
@@ -1743,7 +1957,10 @@ async function exportAllPages() {
       let filename;
       if (isSummary) {
         const summaryType = page.dataset.workType === 'production' ? 'ผลิต' : 'ติดตั้ง';
-        filename = 'สรุปงาน' + summaryType + '-' + fmtDateShort(date) + '.png';
+        const totalSummaryPages = parseInt(page.dataset.summaryTotalPages || '1', 10);
+        const pageNum = page.dataset.summaryPageNum || '1';
+        const pageSuffix = totalSummaryPages > 1 ? '-หน้า' + pageNum : '';
+        filename = 'สรุปงาน' + summaryType + pageSuffix + '-' + fmtDateShort(date) + '.png';
       } else {
         const team = page.dataset.team || '';
         const pageNum = page.dataset.pageNum || '1';

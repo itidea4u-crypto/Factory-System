@@ -31,14 +31,14 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .app-title { font-family: 'Kanit', sans-serif; font-size: 18px; font-weight: 700; }
 .app-subtitle { font-size: 12px; opacity: 0.7; margin-top: 1px; }
 .btn-reset {
-  background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.4);
-  color: #FFF; padding: 8px 14px;
-  font-family: 'Kanit', sans-serif; font-size: 13px; font-weight: 500;
+  background: transparent; border: 1px solid rgba(255,255,255,0.22);
+  color: rgba(255,255,255,0.7); padding: 5px 10px;
+  font-family: 'Kanit', sans-serif; font-size: 11px; font-weight: 400;
   cursor: pointer; border-radius: 4px;
-  display: flex; align-items: center; gap: 6px;
-  white-space: nowrap;
+  display: flex; align-items: center; gap: 4px;
+  white-space: nowrap; opacity: 0.85;
 }
-.btn-reset:hover { background: rgba(255,255,255,0.25); }
+.btn-reset:hover { background: rgba(255,255,255,0.12); color: #FFF; opacity: 1; }
 
 /* Main */
 .main { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
@@ -571,15 +571,16 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
 .team-box-name {
   font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 16px;
   color: #1A1A1A; flex: 1; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  line-height: 1.35; word-break: break-word;
 }
-.team-box-count {
-  font-family: 'Kanit', sans-serif; font-weight: 700;
-  font-size: 14px; color: #5A5550;
-  background: #FFF; padding: 3px 10px; border-radius: 999px;
-  border: 1px solid #D6D1C7; flex-shrink: 0;
+.team-count-inline {
+  font-family: 'Sarabun', sans-serif; font-weight: 700;
+  font-size: 15px; color: #1A1A1A;
+  margin-left: 6px; white-space: nowrap;
 }
-.team-box-count.has-items { background: #1A1A1A; color: #FFF; border-color: #1A1A1A; }
+.team-count-inline.team-count-empty {
+  font-weight: 400; color: #8A8278; font-style: italic;
+}
 .team-box-body { padding: 10px 12px 12px; }
 .team-upload-btn {
   display: flex; flex-direction: column;
@@ -638,7 +639,7 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
       <div class="app-subtitle">Job Order Management</div>
     </div>
   </div>
-  <button class="btn-reset" onclick="confirmReset()">🗑️ ลบงานวันนี้</button>
+  <button class="btn-reset" onclick="confirmReset()">⚠️ ล้างข้อมูลวันนี้</button>
 </div>
 
 <div class="main">
@@ -672,11 +673,11 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
   <div class="section preview-section collapsed" id="previewSection">
     <div class="preview-header">
       <div>
-        <div class="preview-title">③ ตัวอย่างก่อนออกรูป</div>
+        <div class="preview-title">③ ดูตัวอย่างใบงาน</div>
         <div class="preview-stats" id="previewStats"></div>
       </div>
       <button class="preview-toggle" id="previewToggle" onclick="togglePreview()">
-        <span class="arrow">▾</span> <span id="previewToggleLabel">ดูตัวอย่าง</span>
+        <span class="arrow">▾</span> <span id="previewToggleLabel">👀 ดูตัวอย่างใบงาน</span>
       </button>
     </div>
     <div id="printPagesContainer"></div>
@@ -691,7 +692,7 @@ body { background: #F5F3EE; font-family: 'Sarabun', sans-serif; color: #1A1A1A; 
       <strong id="stickyCount">0 รูป</strong>
       <span id="stickyPages">0 หน้า A4</span>
     </div>
-    <button class="btn-export-sticky" id="exportBtn" onclick="exportAllPages()">📸 บันทึกรูป</button>
+    <button class="btn-export-sticky" id="exportBtn" onclick="exportAllPages()">📸 สร้างใบงานเป็นรูป</button>
   </div>
 </div>
 
@@ -721,6 +722,7 @@ let jobItems = [];
 let _saveTimer = null;
 let _saveInFlight = false;
 let _savePendingAfter = false;
+let _pendingUploadCount = 0; // นับรูปที่เพิ่งอัปโหลด รอ save → แจ้งผู้ใช้เมื่อ save เสร็จ
 
 // ============================================================================
 //  DEBUG (silent in production — uncomment console.log lines to debug)
@@ -1072,6 +1074,10 @@ async function handleFiles(files, team) {
 
   hideLoading();
   renderJobItems();
+  if (processed > 0) {
+    _pendingUploadCount += processed;
+    showToast('📷 เพิ่มรูปแล้ว ' + processed + ' รูป · กำลังบันทึกอัตโนมัติ...', 'ok');
+  }
   scheduleAutoSave(300); // save เร็วหลังอัปรูป — รูปใหญ่ ไม่อยากเสี่ยงหาย
 }
 
@@ -1103,10 +1109,13 @@ function renderJobItems() {
     const safeTeam = esc(team);
     const teamId = 'team-upload-' + teamIdx; // ASCII-safe ID
 
+    const countText = count > 0
+      ? ' <span class="team-count-inline">— ' + count + ' รูป</span>'
+      : ' <span class="team-count-inline team-count-empty">— ยังไม่มีรูป</span>';
+
     html += '<div class="team-box ' + typeCls + '" data-team="' + safeTeam + '" data-team-idx="' + teamIdx + '">' +
       '<div class="team-box-header">' +
-        '<div class="team-box-name">' + (isInstall ? '🛠️' : '🔨') + ' ' + safeTeam + '</div>' +
-        '<div class="team-box-count' + (count > 0 ? ' has-items' : '') + '">' + count + ' รูป</div>' +
+        '<div class="team-box-name">' + (isInstall ? '🛠️' : '🔨') + ' ' + safeTeam + countText + '</div>' +
       '</div>' +
       '<div class="team-box-body">' +
         '<input type="file" id="' + teamId + '" accept="image/*" multiple class="visually-hidden" ' +
@@ -1350,6 +1359,11 @@ async function doSave() {
     const hh = String(now.getHours()).padStart(2,'0');
     const mm = String(now.getMinutes()).padStart(2,'0');
     setSaveStatus('saved', '✓ บันทึกแล้ว ' + hh + ':' + mm);
+    // ถ้าเพิ่งอัปโหลดรูป → แจ้งให้มั่นใจว่ารูปปลอดภัยแล้ว
+    if (_pendingUploadCount > 0) {
+      showToast('✅ บันทึกแล้ว · รูปจะไม่หายแม้ปิดหน้าเว็บ', 'ok');
+      _pendingUploadCount = 0;
+    }
     renderJobItems();
   } catch (e) {
     setSaveStatus('error', '⚠️ บันทึกไม่สำเร็จ — แตะเพื่อลองใหม่');
@@ -1404,9 +1418,9 @@ function updateStickyBar() {
   const stickyPages = document.getElementById('stickyPages');
   const exportBtn = document.getElementById('exportBtn');
 
-  stickyCount.textContent = count + ' รูป · ' + teamCount + ' ทีม';
+  stickyCount.textContent = 'วันนี้มี ' + count + ' รูป';
   stickyCount.style.color = '';
-  stickyPages.textContent = pages + ' หน้า A4';
+  stickyPages.textContent = teamCount + ' ทีม · ' + pages + ' หน้า A4';
   exportBtn.disabled = false;
 }
 
@@ -1417,7 +1431,7 @@ function togglePreview() {
   const sec = document.getElementById('previewSection');
   const label = document.getElementById('previewToggleLabel');
   sec.classList.toggle('collapsed');
-  label.textContent = sec.classList.contains('collapsed') ? 'ดูตัวอย่าง' : 'ซ่อนตัวอย่าง';
+  label.textContent = sec.classList.contains('collapsed') ? '👀 ดูตัวอย่างใบงาน' : '🙈 ซ่อนตัวอย่าง';
 }
 
 // ============================================================================
@@ -1607,6 +1621,37 @@ async function loadAllJobsForWorkType(workTypeKey, date) {
 
 // Export PNG — ใบงานต่อทีม + แผ่นสรุปทั้ง 2 ประเภท
 async function exportAllPages() {
+  // ① ตรวจงานติดตั้ง: ทุกรูปต้องมี "สถานที่" ก่อน export
+  //    ใบงานติดตั้งถ้าไม่มีสถานที่ ลูกน้องไปทำงานจริงไม่ได้
+  if (workType === 'installation') {
+    const missing = jobItems.filter(j => j.team && !String(j.location || '').trim());
+    if (missing.length > 0) {
+      showToast('⚠️ ยังมีงานติดตั้งที่ไม่ได้ใส่สถานที่ (' + missing.length + ' รูป) — กรุณาใส่ก่อนสร้างใบงาน', 'error');
+      // เลื่อนไปหารูปแรกที่ขาดสถานที่ แล้ว highlight ช่อง input
+      const first = missing[0];
+      const key = first.id || first.tempId;
+      const el = document.querySelector('[data-key="' + key + '"]');
+      if (el) {
+        el.scrollIntoView({behavior: 'smooth', block: 'center'});
+        const input = el.querySelector('.job-input:not(.job-textarea)');
+        if (input) {
+          setTimeout(() => {
+            input.focus();
+            const origOutline = input.style.outline;
+            const origOffset = input.style.outlineOffset;
+            input.style.outline = '3px solid #C1440E';
+            input.style.outlineOffset = '2px';
+            setTimeout(() => {
+              input.style.outline = origOutline;
+              input.style.outlineOffset = origOffset;
+            }, 2500);
+          }, 400); // รอ scroll เสร็จก่อน focus
+        }
+      }
+      return;
+    }
+  }
+
   // บันทึกก่อน export ให้แน่ใจ
   await flushSave();
 
